@@ -154,11 +154,13 @@ class OpenAIModelsClient:
         """Infer the API type from model id/name patterns."""
         combined = f"{model_id} {name}".lower()
 
-        if "claude" in combined:
+        # Anthropic: any of the Anthropic model family names work even when
+        # the upstream id has a non-Anthropic prefix (e.g. cometapi-sonnet-4-6).
+        if any(t in combined for t in ("claude", "sonnet", "opus", "haiku", "fable", "mythos")):
             return "Anthropic"
-        if "gpt" in combined or "openai" in combined:
+        if any(t in combined for t in ("gpt", "o1", "o3", "o4", "openai", "dall-e", "gpt-image", "sora")):
             return "OpenAI"
-        if "gemini" in combined or "google" in combined:
+        if any(t in combined for t in ("gemini", "veo", "imagen", "google")):
             return "Google"
 
         return api_types[0] if api_types else "OpenAI"

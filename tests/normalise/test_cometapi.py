@@ -6,6 +6,8 @@ content will surface as a test failure.
 """
 from pathlib import Path
 
+from llm_registry.discovery.api.openai import OpenAIModelsClient
+from llm_registry.discovery.api.requesty import RequestyModelsClient
 from llm_registry.normalise.cometapi import (
     build_slug_to_url_map,
     find_url_for_model,
@@ -155,3 +157,53 @@ def test_empty_markdown_returns_entry_with_none_fields():
     assert e.pricing is None
     assert e.context_window is None
     assert e.display_name is None
+
+
+# --- api_type inference (regression: cometapi-claude-* misclassification) ---
+
+def test_infer_api_type_claude_canonical_name():
+    """The standard 'claude-*' id should map to Anthropic."""
+    c = OpenAIModelsClient("http://x", "/m", "k")
+    assert c._infer_api_type("claude-sonnet-4-6", "", ["OpenAI", "Anthropic"]) == "Anthropic"
+
+
+def test_infer_api_type_anthropic_family_without_claude_word():
+    """Regression: CometAPI exposes some models with the 'claude' word
+    stripped (e.g. 'cometapi-sonnet-4-5-20250929'). The bare family
+    names 'sonnet', 'opus', 'haiku', 'fable', 'mythos' are exclusively
+    Anthropic — they should still map to Anthropic."""
+    c = OpenAIModelsClient("http://x", "/m", "k")
+    for mid in [
+        "cometapi-sonnet-4-5-20250929",
+        "cometapi-opus-4-6",
+        "cometapi-haiku-4-5-20251001",
+        "anthropic-fable-5",
+        "claude-mythos-5",
+    ]:
+        assert c._infer_api_type(mid, "", ["OpenAI"]) == "Anthropic", mid
+
+
+def test_infer_api_type_gpt_image_sora_dall_e_are_openai():
+    c = OpenAIModelsClient("http://x", "/m", "k")
+    for mid in ["gpt-5", "o1-preview", "o3-mini", "openai/gpt-4o", "dall-e-3", "gpt-image-1", "sora-2"]:
+        assert c._infer_api_type(mid, "", ["Anthropic"]) == "OpenAI", mid
+
+
+def test_infer_api_type_veo_imagen_are_google():
+    c = OpenAIModelsClient("http://x", "/m", "k")
+    for mid in ["gemini-2.5-pro", "veo-3.1", "imagen-3.0", "google/gemini-3"]:
+        assert c._infer_api_type(mid, "", ["OpenAI"]) == "Google", mid
+
+
+def test_infer_api_type_falls_back_to_api_types():
+    c = OpenAIModelsClient("http://x", "/m", "k")
+    # unknown id, no match → fall back to first configured api_type
+    assert c._infer_api_type("llama-3-70b", "", ["OpenAI"]) == "OpenAI"
+
+
+def test_requesty_infer_api_type_uses_same_heuristic():
+    """Requesty client must use the same logic — same bug existed there."""
+    c = RequestyModelsClient("http://x", "/m", "k")
+    assert c._infer_api_type("cometapi-sonnet-4-6", "", ["OpenAI"]) == "Anthropic"
+    assert c._infer_api_type("gpt-4o", "", ["OpenAI"]) == "OpenAI"
+    assert c._infer_api_type("gemini-2.5-pro", "", ["OpenAI"]) == "Google"
