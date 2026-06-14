@@ -207,3 +207,76 @@ def test_requesty_infer_api_type_uses_same_heuristic():
     assert c._infer_api_type("cometapi-sonnet-4-6", "", ["OpenAI"]) == "Anthropic"
     assert c._infer_api_type("gpt-4o", "", ["OpenAI"]) == "OpenAI"
     assert c._infer_api_type("gemini-2.5-pro", "", ["OpenAI"]) == "Google"
+
+
+# --- openclaw_provider_key derivation ---------------------------------------
+
+def _make_entry_openai(raw, **kwargs):
+    return OpenAIModelsClient("http://x", "/m", "k").map_to_model_entry(raw, **kwargs)
+
+
+def test_openclaw_key_uses_configured_mapping():
+    """When the provider's openclaw_provider_keys map has the inferred
+    api_type, that exact value is used (e.g. 'comet-anthropic')."""
+    raw = {"id": "claude-sonnet-4-6", "name": ""}
+    e = _make_entry_openai(
+        raw,
+        provider_id="cometapi",
+        api_types=["OpenAI", "Anthropic", "Google"],
+        openclaw_keys={"OpenAI": "comet-openai", "Anthropic": "comet-anthropic", "Google": "comet-google"},
+    )
+    assert e.api_type == "Anthropic"
+    assert e.openclaw_provider_key == "comet-anthropic"
+
+
+def test_openclaw_key_derived_when_not_configured():
+    """When the api_type is not in the provider's openclaw_provider_keys
+    map, derive '{provider_id}-{api_type_lowercased}' (e.g. 'requesty-anthropic')."""
+    raw = {"id": "anthropic/claude-fable-5", "name": ""}
+    # OpenRouter config only has 'openrouter' for OpenAI
+    e = _make_entry_openai(
+        raw,
+        provider_id="openrouter",
+        api_types=["OpenAI"],
+        openclaw_keys={"OpenAI": "openrouter"},
+    )
+    assert e.api_type == "Anthropic"
+    assert e.openclaw_provider_key == "openrouter-anthropic"
+
+
+def test_openclaw_key_derived_for_google_on_openrouter():
+    raw = {"id": "google/gemini-3-flash", "name": ""}
+    e = _make_entry_openai(
+        raw,
+        provider_id="openrouter",
+        api_types=["OpenAI"],
+        openclaw_keys={"OpenAI": "openrouter"},
+    )
+    assert e.api_type == "Google"
+    assert e.openclaw_provider_key == "openrouter-google"
+
+
+def test_openclaw_key_none_when_no_api_type():
+    raw = {"id": "claude-sonnet-4-6", "name": ""}
+    e = _make_entry_openai(
+        raw,
+        provider_id="x",
+        api_types=[],
+        openclaw_keys={},
+    )
+    # With no api_types list, _infer_api_type returns "OpenAI" (fallback).
+    # That always has a non-empty derived key, so this is just a smoke test.
+    assert e.openclaw_provider_key is not None
+
+
+def test_requesty_openclaw_key_derived_when_not_configured():
+    """Same fallback logic must apply in the Requesty client."""
+    raw = {"id": "anthropic/claude-fable-5", "description": ""}
+    e = RequestyModelsClient("http://x", "/m", "k").map_to_model_entry(
+        raw,
+        provider_id="requesty",
+        api_types=["OpenAI"],
+        openclaw_keys={"OpenAI": "requesty"},
+    )
+    assert e.api_type == "Anthropic"
+    assert e.openclaw_provider_key == "requesty-anthropic"

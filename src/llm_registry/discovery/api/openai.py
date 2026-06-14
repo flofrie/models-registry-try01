@@ -44,7 +44,12 @@ class OpenAIModelsClient:
 
         # Determine API type from id/name patterns
         api_type = self._infer_api_type(model_id, name, api_types)
-        openclaw_key = openclaw_keys.get(api_type) if openclaw_keys else None
+        # Use configured key if present, else derive "{provider}-{api_type}"
+        # (e.g. "wisgate-anthropic", "requesty-google") so every entry has one.
+        if openclaw_keys and api_type in openclaw_keys:
+            openclaw_key = openclaw_keys[api_type]
+        else:
+            openclaw_key = f"{provider_id}-{api_type.lower()}" if api_type else None
 
         # Parse pricing - handle both standard and OpenRouter format
         pricing_data = raw.get("pricing", {})

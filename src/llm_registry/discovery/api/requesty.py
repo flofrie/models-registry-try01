@@ -43,7 +43,12 @@ class RequestyModelsClient:
         description = raw.get("description", "")
 
         api_type = self._infer_api_type(model_id, description, api_types)
-        openclaw_key = openclaw_keys.get(api_type) if openclaw_keys else None
+        # Use configured key if present, else derive "{provider}-{api_type}"
+        # (e.g. "wisgate-anthropic", "requesty-google") so every entry has one.
+        if openclaw_keys and api_type in openclaw_keys:
+            openclaw_key = openclaw_keys[api_type]
+        else:
+            openclaw_key = f"{provider_id}-{api_type.lower()}" if api_type else None
 
         pricing = self._parse_pricing(raw)
         context_window = raw.get("context_window")
