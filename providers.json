@@ -17,12 +17,7 @@
           "env_var": "WISGATE_API_KEY"
         }
       },
-      "api_types": ["OpenAI", "Anthropic", "Google"],
-      "openclaw_provider_keys": {
-        "OpenAI": "custom-api-wisgate-ai-openai",
-        "Anthropic": "custom-api-wisgate-ai",
-        "Google": "custom-api-wisgate-ai-google"
-      }
+      "api_types": ["OpenAI", "Anthropic", "Google"]
     },
     {
       "id": "openrouter",
@@ -40,10 +35,7 @@
           "env_var": "OPENROUTER_API_KEY"
         }
       },
-      "api_types": ["OpenAI"],
-      "openclaw_provider_keys": {
-        "OpenAI": "openrouter"
-      }
+      "api_types": ["OpenAI"]
     },
     {
       "id": "cometapi",
@@ -62,12 +54,7 @@
           "env_var": "COMET_API_KEY"
         }
       },
-      "api_types": ["OpenAI", "Anthropic", "Google"],
-      "openclaw_provider_keys": {
-        "OpenAI": "comet-openai",
-        "Anthropic": "comet-anthropic",
-        "Google": "comet-google"
-      }
+      "api_types": ["OpenAI", "Anthropic", "Google"]
     },
     {
       "id": "requesty",
@@ -86,10 +73,7 @@
           "env_var": "REQUESTY_API_KEY"
         }
       },
-      "api_types": ["OpenAI"],
-      "openclaw_provider_keys": {
-        "OpenAI": "requesty"
-      }
+      "api_types": ["OpenAI"]
     }
   ],
   "settings": {

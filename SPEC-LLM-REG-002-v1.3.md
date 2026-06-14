@@ -5,7 +5,7 @@ Date: 2026-06-14
 Author: Florian Friedrich
 Status: Active
 
-> v1.3 changes from v1.2: Requesty base URL corrected to `https://router.requesty.ai/v1`. Requesty moved to a dedicated API client (not OpenAI-compatible). LLM extractor marked as future work — current implementation is fully deterministic (regex/table parsing). Coverage notes added for CometAPI (sitemap-gated).
+> v1.3 changes from v1.2: Requesty base URL corrected to `https://router.requesty.ai/v1`. Requesty moved to a dedicated API client (not OpenAI-compatible). LLM extractor marked as future work — current implementation is fully deterministic (regex/table parsing). Coverage notes added for CometAPI (sitemap-gated). `openclaw_provider_keys` removed from `providers.json` — the `openclaw_provider_key` field on each model entry is now derived uniformly as `{provider_id}-{api_type_lowercased}` (e.g. `wisgate-anthropic`, `requesty-google`).
 
 
 1. Overview
@@ -165,17 +165,7 @@ NOTE: The example below shows a simplified single-API structure. Providers like 
 
       },
 
-      "api_types": ["OpenAI", "Anthropic", "Google"],
-
-      "openclaw_provider_keys": {
-
-        "OpenAI": "custom-api-wisgate-ai-openai",
-
-        "Anthropic": "custom-api-wisgate-ai",
-
-        "Google": "custom-api-wisgate-ai-google"
-
-      }
+      "api_types": ["OpenAI", "Anthropic", "Google"]
 
     },
 
@@ -215,13 +205,7 @@ NOTE: The example below shows a simplified single-API structure. Providers like 
 
       },
 
-      "api_types": ["OpenAI"],
-
-      "openclaw_provider_keys": {
-
-        "OpenAI": "openrouter"
-
-      }
+      "api_types": ["OpenAI"]
 
     },
 
@@ -261,13 +245,7 @@ NOTE: The example below shows a simplified single-API structure. Providers like 
 
       },
 
-      "api_types": ["OpenAI"],
-
-      "openclaw_provider_keys": {
-
-        "OpenAI": "requesty"
-
-      }
+      "api_types": ["OpenAI"]
 
     },
 
@@ -307,17 +285,7 @@ NOTE: The example below shows a simplified single-API structure. Providers like 
 
       },
 
-      "api_types": ["OpenAI", "Anthropic", "Google"],
-
-      "openclaw_provider_keys": {
-
-        "OpenAI": "comet-openai",
-
-        "Anthropic": "comet-anthropic",
-
-        "Google": "comet-google"
-
-      }
+      "api_types": ["OpenAI", "Anthropic", "Google"]
 
     }
 
@@ -358,7 +326,7 @@ NOTE: The example below shows a simplified single-API structure. Providers like 
 | api.auth.env_var | string | ❌ | Environment variable holding the credential |
 | api.auth.header_name | string | ❌ | Custom auth header name (default: Authorization) |
 | api_types | string[] | ✅ | API standards this provider exposes (e.g. ["OpenAI", "Anthropic"]) |
-| openclaw_provider_keys | object | ✅ | Map of api_type → OpenClaw provider key |
+| openclaw_provider_keys | — | — | **Removed in v1.3.** The key is now derived as `{provider_id}-{api_type_lowercased}` (e.g. `wisgate-anthropic`, `requesty-google`). No per-provider configuration needed. |
 
 ### Global Settings Schema
 
@@ -873,7 +841,7 @@ Appendix C: Example Model Entry (Target Format)
 
     "api_type": "OpenAI",
 
-    "openclaw_provider_key": "custom-api-wisgate-ai-openai",
+    "openclaw_provider_key": "wisgate-openai",
 
     "context_window": 200000,
 

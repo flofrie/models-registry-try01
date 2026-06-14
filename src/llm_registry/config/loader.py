@@ -36,7 +36,6 @@ class ProviderConfig(BaseModel):
     website: WebsiteConfig
     api: Optional[ApiConfig] = None
     api_types: list[str] = Field(default_factory=list)
-    openclaw_provider_keys: dict[str, str] = Field(default_factory=dict)
 
 
 class SettingsConfig(BaseModel):

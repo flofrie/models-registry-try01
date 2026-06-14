@@ -91,7 +91,6 @@ async def _update(provider_ids: tuple, dry_run: bool, force: bool, enrich: bool)
                         env_var=prov.api.auth.env_var,
                         provider_id=prov.id,
                         api_types=prov.api_types,
-                        openclaw_keys=prov.openclaw_provider_keys,
                     )
                 else:
                     api_entries = await discover_from_api(
@@ -100,7 +99,6 @@ async def _update(provider_ids: tuple, dry_run: bool, force: bool, enrich: bool)
                         env_var=prov.api.auth.env_var,
                         provider_id=prov.id,
                         api_types=prov.api_types,
-                        openclaw_keys=prov.openclaw_provider_keys,
                     )
                 console.print(f"  → API returned {len(api_entries)} models")
             except Exception as e:

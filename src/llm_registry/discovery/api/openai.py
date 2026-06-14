@@ -35,7 +35,7 @@ class OpenAIModelsClient:
         return data.get("data", [])
 
     def map_to_model_entry(
-        self, raw: dict, provider_id: str, api_types: list[str], openclaw_keys: dict
+        self, raw: dict, provider_id: str, api_types: list[str]
     ) -> ModelEntry:
         """Map API response to ModelEntry."""
         model_id = raw.get("id", "")
@@ -44,12 +44,10 @@ class OpenAIModelsClient:
 
         # Determine API type from id/name patterns
         api_type = self._infer_api_type(model_id, name, api_types)
-        # Use configured key if present, else derive "{provider}-{api_type}"
-        # (e.g. "wisgate-anthropic", "requesty-google") so every entry has one.
-        if openclaw_keys and api_type in openclaw_keys:
-            openclaw_key = openclaw_keys[api_type]
-        else:
-            openclaw_key = f"{provider_id}-{api_type.lower()}" if api_type else None
+        # Derive "{provider_id}-{api_type_lowercased}" (e.g. "wisgate-anthropic",
+        # "requesty-google"). Uniform across all providers — no per-provider
+        # config needed.
+        openclaw_key = f"{provider_id}-{api_type.lower()}" if api_type else None
 
         # Parse pricing - handle both standard and OpenRouter format
         pricing_data = raw.get("pricing", {})
@@ -177,7 +175,6 @@ async def discover_from_api(
     env_var: str,
     provider_id: str,
     api_types: list[str],
-    openclaw_keys: dict,
     timeout: float = 30.0,
 ) -> list[ModelEntry]:
     """Discover models from an OpenAI-compatible API endpoint."""
@@ -190,7 +187,7 @@ async def discover_from_api(
 
     entries = []
     for raw in raw_models:
-        entry = client.map_to_model_entry(raw, provider_id, api_types, openclaw_keys)
+        entry = client.map_to_model_entry(raw, provider_id, api_types)
         entries.append(entry)
 
     return entries
