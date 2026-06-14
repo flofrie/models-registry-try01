@@ -35,19 +35,22 @@ class OpenAIModelsClient:
         return data.get("data", [])
 
     def map_to_model_entry(
-        self, raw: dict, provider_id: str, api_types: list[str]
+        self, raw: dict, provider_id: str, available_endpoint_types: set[str]
     ) -> ModelEntry:
-        """Map API response to ModelEntry."""
+        """Map API response to ModelEntry.
+
+        `available_endpoint_types` is the set of api styles this provider
+        exposes (e.g. {"openai", "anthropic"} for OpenRouter). It gates
+        which inferred api_type values are accepted — if we infer
+        "anthropic" but the provider only has an "openai" endpoint, we
+        fall back to "openai" since that's the only way to reach the model.
+        """
         model_id = raw.get("id", "")
         name = raw.get("name", "")
         description = raw.get("description", "")
 
-        # Determine API type from id/name patterns
-        api_type = self._infer_api_type(model_id, name, api_types)
-        # Derive "{provider_id}-{api_type_lowercased}" (e.g. "wisgate-anthropic",
-        # "requesty-google"). Uniform across all providers — no per-provider
-        # config needed.
-        openclaw_key = f"{provider_id}-{api_type.lower()}" if api_type else None
+        api_type = self._infer_api_type(model_id, name, available_endpoint_types)
+        openclaw_key = f"{provider_id}-{api_type}" if api_type else None
 
         # Parse pricing - handle both standard and OpenRouter format
         pricing_data = raw.get("pricing", {})
@@ -128,7 +131,6 @@ class OpenAIModelsClient:
 
         caps = Capabilities()
 
-        modality = architecture.get("modality", "")
         input_modalities = architecture.get("input_modalities", [])
         output_modalities = architecture.get("output_modalities", [])
 
@@ -145,28 +147,47 @@ class OpenAIModelsClient:
         if "audio" in input_modalities:
             caps.audio = True
 
-        # Video
+        # Video — no field in current schema
         if "video" in input_modalities or "video" in output_modalities:
-            pass  # No video field in current schema
+            pass
 
         return caps if any([caps.text, caps.vision, caps.audio]) else None
 
     def _infer_api_type(
-        self, model_id: str, name: str, api_types: list[str]
-    ) -> Optional[str]:
-        """Infer the API type from model id/name patterns."""
+        self, model_id: str, name: str, available_endpoint_types: set[str]
+    ) -> str:
+        """Infer the API type from model id/name patterns.
+
+        Returns one of the strings in `available_endpoint_types`. If the
+        inferred type isn't offered by the provider, falls back to the
+        first available type (typically "openai", which every provider
+        exposes).
+        """
         combined = f"{model_id} {name}".lower()
 
-        # Anthropic: any of the Anthropic model family names work even when
-        # the upstream id has a non-Anthropic prefix (e.g. cometapi-sonnet-4-6).
+        # Anthropic family — match even when the upstream id has a non-Anthropic
+        # prefix (e.g. cometapi-sonnet-4-6).
         if any(t in combined for t in ("claude", "sonnet", "opus", "haiku", "fable", "mythos")):
-            return "Anthropic"
+            if "anthropic" in available_endpoint_types:
+                return "anthropic"
+        # OpenAI family
         if any(t in combined for t in ("gpt", "o1", "o3", "o4", "openai", "dall-e", "gpt-image", "sora")):
-            return "OpenAI"
+            if "openai" in available_endpoint_types:
+                return "openai"
+        # Google family
         if any(t in combined for t in ("gemini", "veo", "imagen", "google")):
-            return "Google"
+            if "google" in available_endpoint_types:
+                return "google"
 
-        return api_types[0] if api_types else "OpenAI"
+        # Fallback: prefer "openai" if available (every provider exposes
+        # it), otherwise the first type in the set. Set iteration order
+        # is not guaranteed across Python versions, so we don't use it
+        # directly.
+        if "openai" in available_endpoint_types:
+            return "openai"
+        if available_endpoint_types:
+            return next(iter(available_endpoint_types))
+        return "openai"
 
 
 async def discover_from_api(
@@ -174,7 +195,7 @@ async def discover_from_api(
     endpoint: str,
     env_var: str,
     provider_id: str,
-    api_types: list[str],
+    available_endpoint_types: set[str],
     timeout: float = 30.0,
 ) -> list[ModelEntry]:
     """Discover models from an OpenAI-compatible API endpoint."""
@@ -187,7 +208,7 @@ async def discover_from_api(
 
     entries = []
     for raw in raw_models:
-        entry = client.map_to_model_entry(raw, provider_id, api_types)
+        entry = client.map_to_model_entry(raw, provider_id, available_endpoint_types)
         entries.append(entry)
 
     return entries

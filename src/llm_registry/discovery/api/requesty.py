@@ -37,16 +37,13 @@ class RequestyModelsClient:
         return data.get("data", [])
 
     def map_to_model_entry(
-        self, raw: dict, provider_id: str, api_types: list[str]
+        self, raw: dict, provider_id: str, available_endpoint_types: set[str]
     ) -> ModelEntry:
         model_id = raw.get("id", "")
         description = raw.get("description", "")
 
-        api_type = self._infer_api_type(model_id, description, api_types)
-        # Derive "{provider_id}-{api_type_lowercased}" (e.g. "requesty-anthropic",
-        # "requesty-google"). Uniform across all providers — no per-provider
-        # config needed.
-        openclaw_key = f"{provider_id}-{api_type.lower()}" if api_type else None
+        api_type = self._infer_api_type(model_id, description, available_endpoint_types)
+        openclaw_key = f"{provider_id}-{api_type}" if api_type else None
 
         pricing = self._parse_pricing(raw)
         context_window = raw.get("context_window")
@@ -124,20 +121,28 @@ class RequestyModelsClient:
         return caps if any([caps.text, caps.vision, caps.audio, caps.tool_use]) else None
 
     def _infer_api_type(
-        self, model_id: str, description: str, api_types: list[str]
-    ) -> Optional[str]:
+        self, model_id: str, description: str, available_endpoint_types: set[str]
+    ) -> str:
         combined = f"{model_id} {description}".lower()
 
-        # Anthropic: any of the Anthropic model family names work even when
-        # the upstream id has a non-Anthropic prefix (e.g. cometapi-sonnet-4-6).
+        # Anthropic family
         if any(t in combined for t in ("claude", "sonnet", "opus", "haiku", "fable", "mythos")):
-            return "Anthropic"
+            if "anthropic" in available_endpoint_types:
+                return "anthropic"
+        # OpenAI family
         if any(t in combined for t in ("gpt", "o1", "o3", "o4", "openai", "dall-e", "gpt-image", "sora")):
-            return "OpenAI"
+            if "openai" in available_endpoint_types:
+                return "openai"
+        # Google family
         if any(t in combined for t in ("gemini", "veo", "imagen", "google")):
-            return "Google"
+            if "google" in available_endpoint_types:
+                return "google"
 
-        return api_types[0] if api_types else "OpenAI"
+        if "openai" in available_endpoint_types:
+            return "openai"
+        if available_endpoint_types:
+            return next(iter(available_endpoint_types))
+        return "openai"
 
 
 async def discover_from_requesty(
@@ -145,7 +150,7 @@ async def discover_from_requesty(
     endpoint: str,
     env_var: str,
     provider_id: str,
-    api_types: list[str],
+    available_endpoint_types: set[str],
     timeout: float = 30.0,
 ) -> list[ModelEntry]:
     api_key = os.environ.get(env_var)
@@ -157,6 +162,6 @@ async def discover_from_requesty(
 
     entries = []
     for raw in raw_models:
-        entry = client.map_to_model_entry(raw, provider_id, api_types)
+        entry = client.map_to_model_entry(raw, provider_id, available_endpoint_types)
         entries.append(entry)
     return entries

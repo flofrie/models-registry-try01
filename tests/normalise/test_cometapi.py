@@ -159,19 +159,20 @@ def test_empty_markdown_returns_entry_with_none_fields():
     assert e.display_name is None
 
 
-# --- api_type inference (regression: cometapi-claude-* misclassification) ---
+# --- api_type inference (v1.3: lowercase, gated by available_endpoint_types) -
 
 def test_infer_api_type_claude_canonical_name():
-    """The standard 'claude-*' id should map to Anthropic."""
+    """The standard 'claude-*' id maps to anthropic when offered."""
     c = OpenAIModelsClient("http://x", "/m", "k")
-    assert c._infer_api_type("claude-sonnet-4-6", "", ["OpenAI", "Anthropic"]) == "Anthropic"
+    assert c._infer_api_type("claude-sonnet-4-6", "", {"openai", "anthropic", "google"}) == "anthropic"
 
 
 def test_infer_api_type_anthropic_family_without_claude_word():
     """Regression: CometAPI exposes some models with the 'claude' word
     stripped (e.g. 'cometapi-sonnet-4-5-20250929'). The bare family
     names 'sonnet', 'opus', 'haiku', 'fable', 'mythos' are exclusively
-    Anthropic — they should still map to Anthropic."""
+    Anthropic — they should still map to anthropic when the provider
+    offers it."""
     c = OpenAIModelsClient("http://x", "/m", "k")
     for mid in [
         "cometapi-sonnet-4-5-20250929",
@@ -180,33 +181,46 @@ def test_infer_api_type_anthropic_family_without_claude_word():
         "anthropic-fable-5",
         "claude-mythos-5",
     ]:
-        assert c._infer_api_type(mid, "", ["OpenAI"]) == "Anthropic", mid
+        assert c._infer_api_type(mid, "", {"openai", "anthropic"}) == "anthropic", mid
 
 
 def test_infer_api_type_gpt_image_sora_dall_e_are_openai():
     c = OpenAIModelsClient("http://x", "/m", "k")
     for mid in ["gpt-5", "o1-preview", "o3-mini", "openai/gpt-4o", "dall-e-3", "gpt-image-1", "sora-2"]:
-        assert c._infer_api_type(mid, "", ["Anthropic"]) == "OpenAI", mid
+        assert c._infer_api_type(mid, "", {"openai", "anthropic"}) == "openai", mid
 
 
 def test_infer_api_type_veo_imagen_are_google():
     c = OpenAIModelsClient("http://x", "/m", "k")
     for mid in ["gemini-2.5-pro", "veo-3.1", "imagen-3.0", "google/gemini-3"]:
-        assert c._infer_api_type(mid, "", ["OpenAI"]) == "Google", mid
+        assert c._infer_api_type(mid, "", {"openai", "google"}) == "google", mid
 
 
-def test_infer_api_type_falls_back_to_api_types():
+def test_infer_api_type_gemini_falls_back_when_no_google_endpoint():
+    """v1.3: providers without a 'google' endpoint (OpenRouter, Requesty)
+    cannot route Gemini models to the Google surface. They must fall
+    back to 'openai' (which all four providers expose)."""
     c = OpenAIModelsClient("http://x", "/m", "k")
-    # unknown id, no match → fall back to first configured api_type
-    assert c._infer_api_type("llama-3-70b", "", ["OpenAI"]) == "OpenAI"
+    for mid in ["gemini-2.5-pro", "veo-3.1", "google/gemini-3"]:
+        # openrouter / requesty shape: only openai + anthropic
+        assert c._infer_api_type(mid, "", {"openai", "anthropic"}) == "openai", mid
+
+
+def test_infer_api_type_falls_back_to_first_available():
+    """Unknown model id, no match → first available type."""
+    c = OpenAIModelsClient("http://x", "/m", "k")
+    # unknown id, but provider has all three
+    assert c._infer_api_type("llama-3-70b", "", {"openai", "anthropic", "google"}) == "openai"
 
 
 def test_requesty_infer_api_type_uses_same_heuristic():
-    """Requesty client must use the same logic — same bug existed there."""
+    """Requesty client must use the same logic."""
     c = RequestyModelsClient("http://x", "/m", "k")
-    assert c._infer_api_type("cometapi-sonnet-4-6", "", ["OpenAI"]) == "Anthropic"
-    assert c._infer_api_type("gpt-4o", "", ["OpenAI"]) == "OpenAI"
-    assert c._infer_api_type("gemini-2.5-pro", "", ["OpenAI"]) == "Google"
+    # requesty offers openai + anthropic (no google)
+    assert c._infer_api_type("cometapi-sonnet-4-6", "", {"openai", "anthropic"}) == "anthropic"
+    assert c._infer_api_type("gpt-4o", "", {"openai", "anthropic"}) == "openai"
+    # gemini on requesty → openai fallback
+    assert c._infer_api_type("gemini-2.5-pro", "", {"openai", "anthropic"}) == "openai"
 
 
 # --- openclaw_provider_key derivation ---------------------------------------
@@ -216,16 +230,14 @@ def _make_entry_openai(raw, **kwargs):
 
 
 def test_openclaw_key_uniformly_derived_for_anthropic():
-    """v1.3: openclaw_provider_key is always '{provider_id}-{api_type_lowercased}',
-    regardless of any per-provider config. The provider's api_types list
-    controls what api_type gets picked, but does not gate the key."""
+    """v1.3: openclaw_provider_key is always '{provider_id}-{api_type}' (lowercase)."""
     raw = {"id": "claude-sonnet-4-6", "name": ""}
     e = _make_entry_openai(
         raw,
         provider_id="cometapi",
-        api_types=["OpenAI", "Anthropic", "Google"],
+        available_endpoint_types={"openai", "anthropic", "google"},
     )
-    assert e.api_type == "Anthropic"
+    assert e.api_type == "anthropic"
     assert e.openclaw_provider_key == "cometapi-anthropic"
 
 
@@ -234,21 +246,10 @@ def test_openclaw_key_derived_for_anthropic_on_openrouter():
     e = _make_entry_openai(
         raw,
         provider_id="openrouter",
-        api_types=["OpenAI"],
+        available_endpoint_types={"openai", "anthropic"},
     )
-    assert e.api_type == "Anthropic"
+    assert e.api_type == "anthropic"
     assert e.openclaw_provider_key == "openrouter-anthropic"
-
-
-def test_openclaw_key_derived_for_google_on_openrouter():
-    raw = {"id": "google/gemini-3-flash", "name": ""}
-    e = _make_entry_openai(
-        raw,
-        provider_id="openrouter",
-        api_types=["OpenAI"],
-    )
-    assert e.api_type == "Google"
-    assert e.openclaw_provider_key == "openrouter-google"
 
 
 def test_openclaw_key_derived_for_openai_on_wisgate():
@@ -256,10 +257,24 @@ def test_openclaw_key_derived_for_openai_on_wisgate():
     e = _make_entry_openai(
         raw,
         provider_id="wisgate",
-        api_types=["OpenAI", "Anthropic", "Google"],
+        available_endpoint_types={"openai", "anthropic", "google"},
     )
-    assert e.api_type == "OpenAI"
+    assert e.api_type == "openai"
     assert e.openclaw_provider_key == "wisgate-openai"
+
+
+def test_openclaw_key_google_falls_back_to_openai_without_endpoint():
+    """Regression: a Gemini model on a provider with no google endpoint
+    must derive openclaw_key=provider-openai (the only surface that
+    actually works)."""
+    raw = {"id": "google/gemini-3-flash", "name": ""}
+    e = _make_entry_openai(
+        raw,
+        provider_id="openrouter",
+        available_endpoint_types={"openai", "anthropic"},
+    )
+    assert e.api_type == "openai"
+    assert e.openclaw_provider_key == "openrouter-openai"
 
 
 def test_requesty_openclaw_key_derived_uniformly():
@@ -268,7 +283,7 @@ def test_requesty_openclaw_key_derived_uniformly():
     e = RequestyModelsClient("http://x", "/m", "k").map_to_model_entry(
         raw,
         provider_id="requesty",
-        api_types=["OpenAI"],
+        available_endpoint_types={"openai", "anthropic"},
     )
-    assert e.api_type == "Anthropic"
+    assert e.api_type == "anthropic"
     assert e.openclaw_provider_key == "requesty-anthropic"

@@ -51,11 +51,11 @@ Edit `providers.json` to add/remove/configure providers. Each entry specifies:
 - `id` / `name` — provider identifier
 - `website.models_page` — URL of the marketing page (used for enrichment)
 - `website.scraping_strategy` — `firecrawl`, `playwright`, `http`, or `none`
-- `api` — endpoint config for the OpenAI-compatible `/v1/models` discovery path
-- `api_types` — which API standards the provider exposes (e.g. `["OpenAI", "Anthropic"]`)
-- `openclaw_provider_keys` — mapping from `api_type` to OpenClaw provider key
+- `endpoints` — list of API surfaces the provider exposes. Each entry has `type` (`"openai"` / `"anthropic"` / `"google"`), `base_url`, `auth`, and one of `models_endpoint` / `messages_endpoint` / `generate_content_endpoint`. The endpoint with `models_endpoint` set is the **discovery endpoint** (typically the `openai` one). Other endpoints are recorded for downstream SDK wiring.
 
-Requesty is the exception — its API is not OpenAI-compatible (prices in $/token at top level) and uses a dedicated client.
+The `api_type` field on each model entry is one of the lowercase values `openai` / `anthropic` / `google`, inferred from the model name and gated by which endpoints the provider actually exposes (a provider without a `google` entry will not produce models with `api_type="google"`).
+
+The `openclaw_provider_key` is derived uniformly as `{provider_id}-{api_type}` (e.g. `wisgate-anthropic`, `requesty-google`). No per-provider configuration.
 
 ## Output
 

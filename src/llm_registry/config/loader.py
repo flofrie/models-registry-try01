@@ -21,12 +21,22 @@ class AuthConfig(BaseModel):
     header_name: Optional[str] = None  # default: Authorization
 
 
-class ApiConfig(BaseModel):
-    """API endpoint configuration."""
-    type: str = "openai"  # openai, anthropic, google
+class EndpointConfig(BaseModel):
+    """A single API surface offered by a provider.
+
+    `type` is the wire/SDK style: "openai", "anthropic", or "google".
+    `auth.method` is whatever the provider actually accepts — for the
+    anthropic-style surface on most providers, this is bearer_token
+    (the user wires the Anthropic SDK via ANTHROPIC_AUTH_TOKEN, not
+    x-api-key). For cometapi's anthropic surface, it would be x-api-key.
+    """
+    type: str  # "openai" | "anthropic" | "google"
     base_url: str
-    models_endpoint: str = "/models"
+    models_endpoint: Optional[str] = None  # present on the discovery endpoint
+    messages_endpoint: Optional[str] = None  # for anthropic-style
+    generate_content_endpoint: Optional[str] = None  # for google-style
     auth: AuthConfig
+    notes: Optional[str] = None  # documented quirks (e.g. auth shim required)
 
 
 class ProviderConfig(BaseModel):
@@ -34,8 +44,10 @@ class ProviderConfig(BaseModel):
     id: str
     name: str
     website: WebsiteConfig
-    api: Optional[ApiConfig] = None
-    api_types: list[str] = Field(default_factory=list)
+    endpoints: list[EndpointConfig] = Field(default_factory=list)
+    # Backward-compat: optional singular `api` block (single OpenAI-style
+    # endpoint) for old configs. Normalised away at load time.
+    api: Optional[dict] = None
 
 
 class SettingsConfig(BaseModel):

@@ -1,8 +1,8 @@
 """Configuration module."""
 from llm_registry.config.loader import (
-    ApiConfig,
     AuthConfig,
     Config,
+    EndpointConfig,
     ProviderConfig,
     SettingsConfig,
     WebsiteConfig,
@@ -10,9 +10,9 @@ from llm_registry.config.loader import (
 )
 
 __all__ = [
-    "ApiConfig",
     "AuthConfig",
     "Config",
+    "EndpointConfig",
     "ProviderConfig",
     "SettingsConfig",
     "WebsiteConfig",

@@ -79,26 +79,34 @@ async def _update(provider_ids: tuple, dry_run: bool, force: bool, enrich: bool)
     for prov in target_providers:
         console.print(f"\n[cyan]Discovering from {prov.name}...[/cyan]")
 
-        # Step 1: Try API first - this gives us the complete model list
+        # Step 1: Try API first - this gives us the complete model list.
+        # We pick the endpoint with `models_endpoint` set as the discovery
+        # endpoint (typically the openai one). The other endpoints are
+        # recorded for downstream SDK wiring but don't drive discovery.
+        discovery_endpoint = next((e for e in prov.endpoints if e.models_endpoint), None)
+        available_types = {e.type for e in prov.endpoints}
+
         api_entries: list[ModelEntry] = []
-        if prov.api:
+        if discovery_endpoint:
             try:
-                console.print(f"  → Calling API: {prov.api.base_url}{prov.api.models_endpoint}")
+                console.print(
+                    f"  → Calling API: {discovery_endpoint.base_url}{discovery_endpoint.models_endpoint}"
+                )
                 if prov.id == "requesty":
                     api_entries = await discover_from_requesty(
-                        base_url=prov.api.base_url,
-                        endpoint=prov.api.models_endpoint,
-                        env_var=prov.api.auth.env_var,
+                        base_url=discovery_endpoint.base_url,
+                        endpoint=discovery_endpoint.models_endpoint,
+                        env_var=discovery_endpoint.auth.env_var,
                         provider_id=prov.id,
-                        api_types=prov.api_types,
+                        available_endpoint_types=available_types,
                     )
                 else:
                     api_entries = await discover_from_api(
-                        base_url=prov.api.base_url,
-                        endpoint=prov.api.models_endpoint,
-                        env_var=prov.api.auth.env_var,
+                        base_url=discovery_endpoint.base_url,
+                        endpoint=discovery_endpoint.models_endpoint,
+                        env_var=discovery_endpoint.auth.env_var,
                         provider_id=prov.id,
-                        api_types=prov.api_types,
+                        available_endpoint_types=available_types,
                     )
                 console.print(f"  → API returned {len(api_entries)} models")
             except Exception as e:

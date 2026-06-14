@@ -8,16 +8,37 @@
         "models_page": "https://wisgate.ai/models",
         "scraping_strategy": "firecrawl"
       },
-      "api": {
-        "type": "openai",
-        "base_url": "https://api.wisgate.ai/v1",
-        "models_endpoint": "/models",
-        "auth": {
-          "method": "bearer_token",
-          "env_var": "WISGATE_API_KEY"
+      "endpoints": [
+        {
+          "type": "openai",
+          "base_url": "https://api.wisgate.ai/v1",
+          "models_endpoint": "/models",
+          "auth": {
+            "method": "bearer_token",
+            "env_var": "WISGATE_API_KEY"
+          }
+        },
+        {
+          "type": "anthropic",
+          "base_url": "https://api.wisgate.ai/v1",
+          "messages_endpoint": "/messages",
+          "auth": {
+            "method": "bearer_token",
+            "env_var": "WISGATE_API_KEY"
+          },
+          "notes": "Undocumented /v1/messages endpoint used by Claude Code integrations. Wire the Anthropic SDK via ANTHROPIC_AUTH_TOKEN (Bearer), not x-api-key."
+        },
+        {
+          "type": "google",
+          "base_url": "https://api.wisgate.ai/v1beta",
+          "generate_content_endpoint": "/models/{model}:generateContent",
+          "auth": {
+            "method": "bearer_token",
+            "env_var": "WISGATE_API_KEY"
+          },
+          "notes": "Gemini-style surface. Some docs reference WISDOM_GATE_KEY as the env var; the same key is sent as Authorization: Bearer."
         }
-      },
-      "api_types": ["OpenAI", "Anthropic", "Google"]
+      ]
     },
     {
       "id": "openrouter",
@@ -26,16 +47,27 @@
         "models_page": "https://openrouter.ai/models",
         "scraping_strategy": "none"
       },
-      "api": {
-        "type": "openai",
-        "base_url": "https://openrouter.ai/api/v1",
-        "models_endpoint": "/models",
-        "auth": {
-          "method": "bearer_token",
-          "env_var": "OPENROUTER_API_KEY"
+      "endpoints": [
+        {
+          "type": "openai",
+          "base_url": "https://openrouter.ai/api/v1",
+          "models_endpoint": "/models",
+          "auth": {
+            "method": "bearer_token",
+            "env_var": "OPENROUTER_API_KEY"
+          }
+        },
+        {
+          "type": "anthropic",
+          "base_url": "https://openrouter.ai/api",
+          "messages_endpoint": "/v1/messages",
+          "auth": {
+            "method": "bearer_token",
+            "env_var": "OPENROUTER_API_KEY"
+          },
+          "notes": "Wire the Anthropic SDK via ANTHROPIC_BASE_URL + ANTHROPIC_AUTH_TOKEN. Native x-api-key is not accepted."
         }
-      },
-      "api_types": ["OpenAI"]
+      ]
     },
     {
       "id": "cometapi",
@@ -45,16 +77,36 @@
         "sample_model_url": "https://www.cometapi.com/models/anthropic/claude-opus-4-8",
         "scraping_strategy": "firecrawl"
       },
-      "api": {
-        "type": "openai",
-        "base_url": "https://api.cometapi.com/v1",
-        "models_endpoint": "/models",
-        "auth": {
-          "method": "bearer_token",
-          "env_var": "COMET_API_KEY"
+      "endpoints": [
+        {
+          "type": "openai",
+          "base_url": "https://api.cometapi.com/v1",
+          "models_endpoint": "/models",
+          "auth": {
+            "method": "bearer_token",
+            "env_var": "COMET_API_KEY"
+          }
+        },
+        {
+          "type": "anthropic",
+          "base_url": "https://api.cometapi.com/v1",
+          "messages_endpoint": "/messages",
+          "auth": {
+            "method": "bearer_token",
+            "env_var": "COMET_API_KEY"
+          },
+          "notes": "CometAPI accepts both x-api-key (native Anthropic) and Authorization: Bearer. Use ANTHROPIC_AUTH_TOKEN when wiring the SDK."
+        },
+        {
+          "type": "google",
+          "base_url": "https://api.cometapi.com/v1beta",
+          "generate_content_endpoint": "/models/{model}:generateContent",
+          "auth": {
+            "method": "bearer_token",
+            "env_var": "COMET_API_KEY"
+          }
         }
-      },
-      "api_types": ["OpenAI", "Anthropic", "Google"]
+      ]
     },
     {
       "id": "requesty",
@@ -64,16 +116,27 @@
         "sample_model_url": null,
         "scraping_strategy": "firecrawl"
       },
-      "api": {
-        "type": "openai",
-        "base_url": "https://router.requesty.ai/v1",
-        "models_endpoint": "/models",
-        "auth": {
-          "method": "bearer_token",
-          "env_var": "REQUESTY_API_KEY"
+      "endpoints": [
+        {
+          "type": "openai",
+          "base_url": "https://router.requesty.ai/v1",
+          "models_endpoint": "/models",
+          "auth": {
+            "method": "bearer_token",
+            "env_var": "REQUESTY_API_KEY"
+          }
+        },
+        {
+          "type": "anthropic",
+          "base_url": "https://router.requesty.ai",
+          "messages_endpoint": "/anthropic/v1/messages",
+          "auth": {
+            "method": "bearer_token",
+            "env_var": "REQUESTY_API_KEY"
+          },
+          "notes": "Exposes ALL Requesty models (including OpenAI/Google/Mistral) through the Anthropic SDK surface. Wire via ANTHROPIC_BASE_URL + ANTHROPIC_AUTH_TOKEN. Native x-api-key not accepted."
         }
-      },
-      "api_types": ["OpenAI"]
+      ]
     }
   ],
   "settings": {

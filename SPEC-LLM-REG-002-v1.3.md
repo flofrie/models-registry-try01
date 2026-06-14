@@ -6,6 +6,7 @@ Author: Florian Friedrich
 Status: Active
 
 > v1.3 changes from v1.2: Requesty base URL corrected to `https://router.requesty.ai/v1`. Requesty moved to a dedicated API client (not OpenAI-compatible). LLM extractor marked as future work — current implementation is fully deterministic (regex/table parsing). Coverage notes added for CometAPI (sitemap-gated). `openclaw_provider_keys` removed from `providers.json` — the `openclaw_provider_key` field on each model entry is now derived uniformly as `{provider_id}-{api_type_lowercased}` (e.g. `wisgate-anthropic`, `requesty-google`).
+> **Schema refactor:** the per-provider `api` block + `api_types` array were replaced by a single `endpoints: [...]` array. Each entry is one real API surface the provider exposes (e.g. one `openai` for OpenAI-compatible, one `anthropic` for Anthropic-Messages-shaped, one `google` for GenAI-shaped), each with its own `base_url` and `auth`. The discovery endpoint is the one with `models_endpoint` set (typically the `openai` one). `api_type` values on model entries are now lowercase: `openai` / `anthropic` / `google`.
 
 
 1. Overview
@@ -129,43 +130,33 @@ NOTE: The example below shows a simplified single-API structure. Providers like 
 
       "website": {
 
-        "models_page": "https://wisgate.ai/pricing",
+        "models_page": "https://wisgate.ai/models",
 
-        "sample_model_url": null,
-
-        "scraping_strategy": "firecrawl",
-
-        "selectors": {
-
-          "model_table": "table.pricing-table",
-
-          "model_name": "td.model-name",
-
-          "pricing_cols": ["td.price-input", "td.price-output"]
-
-        }
+        "scraping_strategy": "firecrawl"
 
       },
 
-      "api": {
-
-        "type": "openai",
-
-        "base_url": "https://api.wisgate.ai/v1",
-
-        "models_endpoint": "/models",
-
-        "auth": {
-
-          "method": "bearer_token",
-
-          "env_var": "WISGATE_API_KEY"
-
+      "endpoints": [
+        {
+          "type": "openai",
+          "base_url": "https://api.wisgate.ai/v1",
+          "models_endpoint": "/models",
+          "auth": { "method": "bearer_token", "env_var": "WISGATE_API_KEY" }
+        },
+        {
+          "type": "anthropic",
+          "base_url": "https://api.wisgate.ai/v1",
+          "messages_endpoint": "/messages",
+          "auth": { "method": "bearer_token", "env_var": "WISGATE_API_KEY" },
+          "notes": "Undocumented /v1/messages used by Claude Code integrations. Wire via ANTHROPIC_AUTH_TOKEN (Bearer), not x-api-key."
+        },
+        {
+          "type": "google",
+          "base_url": "https://api.wisgate.ai/v1beta",
+          "generate_content_endpoint": "/models/{model}:generateContent",
+          "auth": { "method": "bearer_token", "env_var": "WISGATE_API_KEY" }
         }
-
-      },
-
-      "api_types": ["OpenAI", "Anthropic", "Google"]
+      ]
 
     },
 
@@ -179,33 +170,25 @@ NOTE: The example below shows a simplified single-API structure. Providers like 
 
         "models_page": "https://openrouter.ai/models",
 
-        "sample_model_url": "https://openrouter.ai/openrouter/auto",
-
-        "scraping_strategy": "playwright",
-
-        "selectors": null
+        "scraping_strategy": "none"
 
       },
 
-      "api": {
-
-        "type": "openai",
-
-        "base_url": "https://openrouter.ai/api/v1",
-
-        "models_endpoint": "/models",
-
-        "auth": {
-
-          "method": "bearer_token",
-
-          "env_var": "OPENROUTER_API_KEY"
-
+      "endpoints": [
+        {
+          "type": "openai",
+          "base_url": "https://openrouter.ai/api/v1",
+          "models_endpoint": "/models",
+          "auth": { "method": "bearer_token", "env_var": "OPENROUTER_API_KEY" }
+        },
+        {
+          "type": "anthropic",
+          "base_url": "https://openrouter.ai/api",
+          "messages_endpoint": "/v1/messages",
+          "auth": { "method": "bearer_token", "env_var": "OPENROUTER_API_KEY" },
+          "notes": "Wire the Anthropic SDK via ANTHROPIC_BASE_URL + ANTHROPIC_AUTH_TOKEN. Native x-api-key is not accepted."
         }
-
-      },
-
-      "api_types": ["OpenAI"]
+      ]
 
     },
 
@@ -219,33 +202,25 @@ NOTE: The example below shows a simplified single-API structure. Providers like 
 
         "models_page": "https://requesty.ai/models",
 
-        "sample_model_url": null,
-
-        "scraping_strategy": "firecrawl",
-
-        "selectors": null
+        "scraping_strategy": "firecrawl"
 
       },
 
-      "api": {
-
-        "type": "requesty",
-
-        "base_url": "https://router.requesty.ai/v1",
-
-        "models_endpoint": "/models",
-
-        "auth": {
-
-          "method": "bearer_token",
-
-          "env_var": "REQUESTY_API_KEY"
-
+      "endpoints": [
+        {
+          "type": "openai",
+          "base_url": "https://router.requesty.ai/v1",
+          "models_endpoint": "/models",
+          "auth": { "method": "bearer_token", "env_var": "REQUESTY_API_KEY" }
+        },
+        {
+          "type": "anthropic",
+          "base_url": "https://router.requesty.ai",
+          "messages_endpoint": "/anthropic/v1/messages",
+          "auth": { "method": "bearer_token", "env_var": "REQUESTY_API_KEY" },
+          "notes": "Exposes ALL Requesty models (including OpenAI/Google/Mistral) through the Anthropic SDK surface. Wire via ANTHROPIC_BASE_URL + ANTHROPIC_AUTH_TOKEN."
         }
-
-      },
-
-      "api_types": ["OpenAI"]
+      ]
 
     },
 
@@ -257,35 +232,35 @@ NOTE: The example below shows a simplified single-API structure. Providers like 
 
       "website": {
 
-        "models_page": "https://www.cometapi.com/models/",
+        "models_page": "https://www.cometapi.com/models",
 
-        "sample_model_url": "https://www.cometapi.com/models/anthropic/claude-opus-4-8/",
+        "sample_model_url": "https://www.cometapi.com/models/anthropic/claude-opus-4-8",
 
-        "scraping_strategy": "http",
-
-        "selectors": null
+        "scraping_strategy": "firecrawl"
 
       },
 
-      "api": {
-
-        "type": "openai",
-
-        "base_url": "https://api.cometapi.com/v1",
-
-        "models_endpoint": "/models",
-
-        "auth": {
-
-          "method": "bearer_token",
-
-          "env_var": "COMET_API_KEY"
-
+      "endpoints": [
+        {
+          "type": "openai",
+          "base_url": "https://api.cometapi.com/v1",
+          "models_endpoint": "/models",
+          "auth": { "method": "bearer_token", "env_var": "COMET_API_KEY" }
+        },
+        {
+          "type": "anthropic",
+          "base_url": "https://api.cometapi.com/v1",
+          "messages_endpoint": "/messages",
+          "auth": { "method": "bearer_token", "env_var": "COMET_API_KEY" },
+          "notes": "CometAPI accepts both x-api-key (native Anthropic) and Authorization: Bearer. Use ANTHROPIC_AUTH_TOKEN when wiring the SDK."
+        },
+        {
+          "type": "google",
+          "base_url": "https://api.cometapi.com/v1beta",
+          "generate_content_endpoint": "/models/{model}:generateContent",
+          "auth": { "method": "bearer_token", "env_var": "COMET_API_KEY" }
         }
-
-      },
-
-      "api_types": ["OpenAI", "Anthropic", "Google"]
+      ]
 
     }
 
@@ -319,14 +294,24 @@ NOTE: The example below shows a simplified single-API structure. Providers like 
 | website.sample_model_url | string (URL) | ❌ | URL for a specific model detail page (used to infer URL pattern) |
 | website.scraping_strategy | enum | ✅ | "firecrawl", "playwright", "http", or "none" |
 | website.selectors | object | ❌ | CSS/playwright selectors for structured scraping (null = use AI extraction) |
-| api.type | enum | ❌ | API compatibility type: "openai", "anthropic", "google" |
-| api.base_url | string (URL) | ❌ | API base URL |
-| api.models_endpoint | string | ❌ | Path to the models listing endpoint (relative to base_url) |
-| api.auth.method | enum | ❌ | "bearer_token", "api_key_header", "api_key_query" |
-| api.auth.env_var | string | ❌ | Environment variable holding the credential |
-| api.auth.header_name | string | ❌ | Custom auth header name (default: Authorization) |
-| api_types | string[] | ✅ | API standards this provider exposes (e.g. ["OpenAI", "Anthropic"]) |
+| endpoints | Endpoint[] | ✅ | One entry per API surface the provider exposes (openai/anthropic/google) |
 | openclaw_provider_keys | — | — | **Removed in v1.3.** The key is now derived as `{provider_id}-{api_type_lowercased}` (e.g. `wisgate-anthropic`, `requesty-google`). No per-provider configuration needed. |
+
+### Endpoint Object Schema
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| type | enum | ✅ | Wire/SDK style: `"openai"`, `"anthropic"`, or `"google"` |
+| base_url | string (URL) | ✅ | API base URL (no trailing slash) |
+| models_endpoint | string | ❌ | Path to `/models` listing endpoint. Set on the **discovery endpoint** only (typically the `openai` one). The other endpoints are recorded for downstream SDK wiring. |
+| messages_endpoint | string | ❌ | Path to `/messages` (anthropic-style). |
+| generate_content_endpoint | string | ❌ | Path to `/models/{model}:generateContent` (google-style). |
+| auth.method | enum | ✅ | `"bearer_token"`, `"api_key_header"`, `"api_key_query"` |
+| auth.env_var | string | ✅ | Environment variable holding the credential |
+| auth.header_name | string | ❌ | Custom auth header name (default: `Authorization`) |
+| notes | string | ❌ | Free-form notes for documented quirks (e.g. `"Native x-api-key is not accepted; wire via ANTHROPIC_AUTH_TOKEN."`) |
+
+> A provider typically exposes 1–3 endpoint entries. The `openai` endpoint is universal. The `anthropic` and `google` endpoints are only declared if the provider actually serves them — a provider without a `google` entry cannot route models to a google-style wire, so Gemini models on that provider fall back to `openai`.
 
 ### Global Settings Schema
 
@@ -369,7 +354,7 @@ Each model entry in the output MODELS.json SHALL conform to this schema:
 
     "display_name": "string",      // Optional human-friendly name
 
-    "api_type": "string",          // "OpenAI" | "Anthropic" | "Google" | "Other"
+    "api_type": "string",          // "openai" | "anthropic" | "google" | "other"  (lowercase, v1.3)
 
     "openclaw_provider_key": "string",
 
@@ -753,7 +738,7 @@ llm-models-registry/
 │   ├── config/ (loader.py, models.py)
 │   ├── schema/ (model_entry.py, enums.py)
 │   ├── discovery/
-│   │   ├── api/ (base.py, openai.py, anthropic.py, google.py)
+│   │   ├── api/ (openai.py, requesty.py)  # OpenAI-compatible + Requesty clients
 │   │   ├── scraping/ (base.py, firecrawl.py, playwright.py, http.py)
 │   │   └── llm/ (extractor.py)
 │   ├── cache/ (llm_cache.py)
