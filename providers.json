@@ -44,6 +44,30 @@
       "openclaw_provider_keys": {
         "OpenAI": "openrouter"
       }
+    },
+    {
+      "id": "cometapi",
+      "name": "CometAPI",
+      "website": {
+        "models_page": "https://www.cometapi.com/models",
+        "sample_model_url": "https://www.cometapi.com/models/anthropic/claude-opus-4-8",
+        "scraping_strategy": "firecrawl"
+      },
+      "api": {
+        "type": "openai",
+        "base_url": "https://api.cometapi.com/v1",
+        "models_endpoint": "/models",
+        "auth": {
+          "method": "bearer_token",
+          "env_var": "COMET_API_KEY"
+        }
+      },
+      "api_types": ["OpenAI", "Anthropic", "Google"],
+      "openclaw_provider_keys": {
+        "OpenAI": "comet-openai",
+        "Anthropic": "comet-anthropic",
+        "Google": "comet-google"
+      }
     }
   ],
   "settings": {
