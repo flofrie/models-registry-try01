@@ -42,9 +42,15 @@ class RequestyModelsClient:
         self, raw: dict, provider_id: str, available_endpoint_types: set[str]
     ) -> ModelEntry:
         model_id = raw.get("id", "")
-        description = raw.get("description", "")
+        # Requesty's API doesn't have a separate "name" field, so the
+        # first pass is effectively just on model_id and the tiebreaker
+        # adds the description. The two-pass structure mirrors
+        # openai.py for symmetry even though name is always "" here.
+        description = (raw.get("description") or "").strip()
 
-        api_type = self._infer_api_type(model_id, description, available_endpoint_types)
+        api_type = self._infer_api_type(
+            model_id, "", available_endpoint_types, description
+        )
         openclaw_key = openclaw_provider_key(provider_id, api_type)
 
         pricing = self._parse_pricing(raw)
@@ -123,28 +129,60 @@ class RequestyModelsClient:
         return caps if any([caps.text, caps.vision, caps.audio, caps.tool_use]) else None
 
     def _infer_api_type(
-        self, model_id: str, description: str, available_endpoint_types: set[str]
+        self,
+        model_id: str,
+        name: str,
+        available_endpoint_types: set[str],
+        description: str = "",
     ) -> str:
-        combined = f"{model_id} {description}".lower()
+        """Infer the API type from model id + (optionally) description.
 
-        # Anthropic family
-        if any(t in combined for t in ("claude", "sonnet", "opus", "haiku", "fable", "mythos")):
-            if "anthropic" in available_endpoint_types:
-                return "anthropic"
-        # OpenAI family
-        if any(t in combined for t in ("gpt", "o1", "o3", "o4", "openai", "dall-e", "gpt-image", "sora")):
-            if "openai" in available_endpoint_types:
-                return "openai"
-        # Google family
-        if any(t in combined for t in ("gemini", "veo", "imagen", "google")):
-            if "google" in available_endpoint_types:
-                return "google"
+        Same two-pass design as openai.py — see that docstring for the
+        rationale and the known limitation around descriptions that
+        mention other models in passing. Requesty doesn't have a
+        separate name field, so the first pass is effectively just on
+        model_id and the tiebreaker adds the description.
+        """
+        # Pass 1: model_id + name only.
+        first = f"{model_id} {name}".lower()
+        family = self._match_family(first, available_endpoint_types)
+        if family is not None:
+            return family
 
+        # Pass 2: tiebreaker — also consult the description.
+        if description:
+            second = f"{model_id} {name} {description}".lower()
+            family = self._match_family(second, available_endpoint_types)
+            if family is not None:
+                return family
+
+        # Default: prefer "openai" if available.
         if "openai" in available_endpoint_types:
             return "openai"
         if available_endpoint_types:
             return next(iter(available_endpoint_types))
         return "openai"
+
+    @staticmethod
+    def _match_family(text: str, available: set[str]) -> str | None:
+        """Return the first family whose keyword appears in `text`,
+        or None if no family matches. Does NOT fall back to a default.
+        """
+        if "anthropic" in available and any(
+            t in text
+            for t in ("claude", "sonnet", "opus", "haiku", "fable", "mythos")
+        ):
+            return "anthropic"
+        if "openai" in available and any(
+            t in text
+            for t in ("gpt", "o1", "o3", "o4", "openai", "dall-e", "gpt-image", "sora")
+        ):
+            return "openai"
+        if "google" in available and any(
+            t in text for t in ("gemini", "veo", "imagen", "google")
+        ):
+            return "google"
+        return None
 
 
 async def discover_from_requesty(

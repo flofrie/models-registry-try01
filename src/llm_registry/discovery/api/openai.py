@@ -53,8 +53,13 @@ class OpenAIModelsClient:
         """
         model_id = raw.get("id", "")
         name = raw.get("name", "")
+        # Use None/empty as "" so the heuristic treats missing
+        # descriptions the same as present-but-blank ones.
+        description = (raw.get("description") or "").strip()
 
-        api_type = self._infer_api_type(model_id, name, available_endpoint_types)
+        api_type = self._infer_api_type(
+            model_id, name, available_endpoint_types, description
+        )
         openclaw_key = openclaw_provider_key(provider_id, api_type)
 
         # Parse pricing - handle both standard and OpenRouter format
@@ -159,32 +164,51 @@ class OpenAIModelsClient:
         return caps if any([caps.text, caps.vision, caps.audio]) else None
 
     def _infer_api_type(
-        self, model_id: str, name: str, available_endpoint_types: set[str]
+        self,
+        model_id: str,
+        name: str,
+        available_endpoint_types: set[str],
+        description: str = "",
     ) -> str:
-        """Infer the API type from model id/name patterns.
+        """Infer the API type from model id + name + (optionally) description.
 
-        Returns one of the strings in `available_endpoint_types`. If the
-        inferred type isn't offered by the provider, falls back to the
-        first available type (typically "openai", which every provider
-        exposes).
+        Two-pass design:
+        1. Search model_id + name for a family keyword. If found, return
+           that family. This pass uses ONLY the id+name, so a clear
+           signal there (e.g. "gpt-4o") cannot be overridden by a
+           description that mentions a different family in passing
+           (e.g. "compare to Claude 3.5").
+        2. If pass 1 found no family signal, consult the description as
+           a tiebreaker. This helps when the id+name are uninformative
+           (e.g. an opaque model id) and the description is the only
+           identifying text.
+
+        Note: pass 2 can still produce false positives. A description
+        that mentions "Claude" in passing ("compatible with Claude
+        3.5", "recreate Claude-style verbosity") will tip the
+        inference to anthropic. There's no robust way to tell those
+        mentions apart from a real "this IS a Claude model" claim, so
+        the cost is documented and accepted.
+
+        Returns one of the strings in `available_endpoint_types`. If
+        no family matches, falls back to the first available type
+        (typically "openai", which every provider exposes).
         """
-        combined = f"{model_id} {name}".lower()
+        # Pass 1: model_id + name only.
+        first = f"{model_id} {name}".lower()
+        family = self._match_family(first, available_endpoint_types)
+        if family is not None:
+            return family
 
-        # Anthropic family — match even when the upstream id has a non-Anthropic
-        # prefix (e.g. cometapi-sonnet-4-6).
-        if any(t in combined for t in ("claude", "sonnet", "opus", "haiku", "fable", "mythos")):
-            if "anthropic" in available_endpoint_types:
-                return "anthropic"
-        # OpenAI family
-        if any(t in combined for t in ("gpt", "o1", "o3", "o4", "openai", "dall-e", "gpt-image", "sora")):
-            if "openai" in available_endpoint_types:
-                return "openai"
-        # Google family
-        if any(t in combined for t in ("gemini", "veo", "imagen", "google")):
-            if "google" in available_endpoint_types:
-                return "google"
+        # Pass 2: tiebreaker — also consult the description. Only kicks
+        # in when pass 1 found no family signal.
+        if description:
+            second = f"{model_id} {name} {description}".lower()
+            family = self._match_family(second, available_endpoint_types)
+            if family is not None:
+                return family
 
-        # Fallback: prefer "openai" if available (every provider exposes
+        # Default: prefer "openai" if available (every provider exposes
         # it), otherwise the first type in the set. Set iteration order
         # is not guaranteed across Python versions, so we don't use it
         # directly.
@@ -193,6 +217,27 @@ class OpenAIModelsClient:
         if available_endpoint_types:
             return next(iter(available_endpoint_types))
         return "openai"
+
+    @staticmethod
+    def _match_family(text: str, available: set[str]) -> str | None:
+        """Return the first family whose keyword appears in `text`,
+        or None if no family matches. Does NOT fall back to a default.
+        """
+        if "anthropic" in available and any(
+            t in text
+            for t in ("claude", "sonnet", "opus", "haiku", "fable", "mythos")
+        ):
+            return "anthropic"
+        if "openai" in available and any(
+            t in text
+            for t in ("gpt", "o1", "o3", "o4", "openai", "dall-e", "gpt-image", "sora")
+        ):
+            return "openai"
+        if "google" in available and any(
+            t in text for t in ("gemini", "veo", "imagen", "google")
+        ):
+            return "google"
+        return None
 
 
 async def discover_from_api(
