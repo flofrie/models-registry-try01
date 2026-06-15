@@ -268,6 +268,66 @@ def test_requesty_infer_api_type_uses_same_heuristic():
     assert c._infer_api_type("gemini-2.5-pro", "", {"openai", "anthropic"}) == "openai"
 
 
+def test_infer_api_type_description_does_not_override_clear_id_signal():
+    """A clear family keyword in model_id wins even if the description
+    mentions a different family. This is the safety property of the
+    two-pass design: a description like "compare to Claude 3.5" can't
+    reclassify a clearly-named GPT model."""
+    c = OpenAIModelsClient("http://x", "/m", "k")
+    av = {"openai", "anthropic", "google"}
+    # id says gpt, description mentions claude → openai wins
+    assert (
+        c._infer_api_type("openai/gpt-4o", "GPT-4o",
+                          av, "Replacement for Anthropic's Claude 3.5")
+        == "openai"
+    )
+    # id says claude, description mentions openai → anthropic wins
+    assert (
+        c._infer_api_type("anthropic/claude-sonnet-4-6", "Claude Sonnet 4.6",
+                          av, "Better than GPT-4o on coding")
+        == "anthropic"
+    )
+
+
+def test_infer_api_type_description_is_tiebreaker_when_id_and_name_empty():
+    """When model_id and name have no family signal, the description
+    is consulted as a tiebreaker. This is the description-driven case
+    the heuristic was extended to cover."""
+    c = OpenAIModelsClient("http://x", "/m", "k")
+    av = {"openai", "anthropic", "google"}
+    # non-informative id + name, description has the signal
+    assert (
+        c._infer_api_type("custom-id", "Acme Model", av,
+                          "Anthropic's flagship Claude model")
+        == "anthropic"
+    )
+    assert (
+        c._infer_api_type("custom-id", "Acme Model", av,
+                          "Google's Gemini family")
+        == "google"
+    )
+    # Without the description, the default is "openai"
+    assert c._infer_api_type("custom-id", "Acme Model", av) == "openai"
+
+
+def test_infer_api_type_description_passive_mention_still_tips():
+    """Known limitation: a description that mentions 'Claude' in passing
+    (e.g. 'compatible with Claude 3.5') will tip the inference to
+    anthropic even though the model itself isn't Claude. This is
+    the trade-off the tiebreaker accepts; documented in the docstring."""
+    c = OpenAIModelsClient("http://x", "/m", "k")
+    av = {"openai", "anthropic", "google"}
+    # Relace-style model: id+name have no signal, description
+    # mentions Claude as something it works with. Gets reclassified
+    # to anthropic. This is a real limitation of the heuristic; the
+    # only way to avoid it is to skip the description entirely.
+    assert (
+        c._infer_api_type("relace/relace-apply-3", "Relace: Relace Apply 3", av,
+                          "Applies edits from GPT-4o, Claude, and others into your files.")
+        == "anthropic"
+    )
+
+
 # --- openclaw_provider_key derivation ---------------------------------------
 
 def _make_entry_openai(raw, **kwargs):
