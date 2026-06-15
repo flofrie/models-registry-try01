@@ -9,12 +9,15 @@ Status: Active
 > **Schema refactor:** the per-provider `api` block + `api_types` array were replaced by a single `endpoints: [...]` array. Each entry is one real API surface the provider exposes (e.g. one `openai` for OpenAI-compatible, one `anthropic` for Anthropic-Messages-shaped, one `google` for GenAI-shaped), each with its own `base_url` and `auth`. The discovery endpoint is the one with `models_endpoint` set (typically the `openai` one). `api_type` values on model entries are now lowercase: `openai` / `anthropic` / `google`.
 
 
-1. Overview
-1.1 Purpose
+## 1. Overview
+
+### 1.1 Purpose
 The LLM Models Registry is a software tool that maintains an up-to-date, machine-readable database of available large language models (LLMs) across multiple API providers. It mirrors and extends the existing MODELS.json file currently populated for Wisgate, and generalises the process to any number of configurable providers.
-1.2 Scope
+
+### 1.2 Scope
 In scope: Scraping provider websites for model listings, pricing, and capabilities; querying provider APIs for model metadata; normalising heterogeneous data into a common schema; outputting MODELS.json and an optional human-readable MODELS.md.
 Out of scope: Real-time model availability monitoring, performance benchmarking, model quality evaluation, direct integration with OpenClaw configuration (that lives in a separate layer).
+
 ### 1.3 Target Providers (Initial)
 
 | Provider | Models Page | Example URL for a specific model | Docs | API Docs | Notes |
@@ -29,8 +32,9 @@ The provider list must be configurable, allowing addition, removal, or modificat
 > **[IMPL]** Simple providers with an OpenAI-compatible `/v1/models` endpoint need zero code — just config. Custom code (an API client in `discovery/api/`, a normaliser in `normalise/`) is only needed when the shape doesn't fit the standard client or the detail pages need provider-specific parsing. See `CONTRIBUTING.md` for the decision tree.
 
 
-2. System Architecture
-2.1 High-Level Flow
+## 2. System Architecture
+
+### 2.1 High-Level Flow
 
 
 ┌─────────────────────────────────────────────────────┐
@@ -86,7 +90,8 @@ The provider list must be configurable, allowing addition, removal, or modificat
          │  MODELS.json + MODELS.md│
 
          └─────────────────────────┘
-2.2 Components
+
+### 2.2 Components
 Provider Configuration Loader — reads providers.json, validates entries, resolves authentication credentials
 Website Scraper — crawls JS-heavy provider pages using a headless browser (Playwright/Puppeteer) or a dedicated scraping API (Firecrawl)
 API Documentation Parser — extracts API base URLs, endpoint paths, and authentication schemes from provider docs
@@ -94,6 +99,7 @@ API Model Lister — calls provider APIs (e.g. /v1/models, /models) to programma
 Data Normaliser — maps provider-specific fields to the common schema, deduplicates, validates
 LLM Extraction Cache — caches LLM-parsed results to avoid redundant calls
 Output Generator — writes MODELS.json and an optional human-readable MODELS.md
+
 ### 2.3 Technology Choices
 
 | Concern | Recommendation | Rationale |
@@ -108,8 +114,9 @@ Output Generator — writes MODELS.json and an optional human-readable MODELS.md
 | Output format | JSON (primary) + Markdown (companion) | Machine-readable primary; human-readable secondary |
 
 
-3. Configuration
-3.1 Provider Configuration File (providers.json)
+## 3. Configuration
+
+### 3.1 Provider Configuration File (providers.json)
 This is the central configuration file. Each provider entry specifies how to discover its models.
 
 This is an example, and the actual initial providers.json file should be created and populated as part of the tool design process.
@@ -283,7 +290,9 @@ NOTE: The example below shows a simplified single-API structure. Providers like 
   }
 
 }
-3.2 Configuration Schema
+
+### 3.2 Configuration Schema
+
 ### Provider Object Schema
 
 | Field | Type | Required | Description |
@@ -335,8 +344,9 @@ NOTE: The example below shows a simplified single-API structure. Providers like 
 | none | Skip website scraping entirely; rely solely on API queries | Provider has a complete /models endpoint |
 
 
-4. Data Model
-4.1 Common Schema (MODELS.json)
+## 4. Data Model
+
+### 4.1 Common Schema (MODELS.json)
 Each model entry in the output MODELS.json SHALL conform to this schema:
 
 {
@@ -424,6 +434,7 @@ Each model entry in the output MODELS.json SHALL conform to this schema:
   }
 
 }
+
 ### 4.2 Field Derivation Rules
 
 These rules define how to populate the common schema from heterogeneous provider data:
@@ -448,12 +459,13 @@ Missing models: Mark available: false and add notes: "No longer listed by provid
 New models: Add with all available fields; leave unknown fields as null
 
 
-5. Scraping & Discovery Flows
+## 5. Scraping & Discovery Flows
 
 **Architecture: API-first, scrape-to-fill-gaps.** The default discovery strategy is to query provider APIs (Section 5.2) first, as APIs return structured, versioned data. Website scraping (Section 5.1) is used as a fallback only for fields the API does not expose (e.g. per-model API type, cache pricing, or when the API is unavailable).
 
 > **[IMPL]** The orchestrator calls API Query first, then invokes Website Scraper only for gaps. API-first is mandatory - scraping is never the primary path.
-5.1 Website Scraping
+
+### 5.1 Website Scraping
 For each provider with scraping_strategy != "none":
 
 Load the models page using the configured strategy
@@ -492,7 +504,8 @@ The cache stores:
 
 On cache hit: return cached result
 On cache miss: call LLM, store result, return
-5.2 API Model Discovery
+
+### 5.2 API Model Discovery
 For each provider with api.models_endpoint configured:
 
 Call the models endpoint with appropriate authentication
@@ -502,7 +515,8 @@ Anthropic: Not all providers expose this natively; map via the overlay API
 Google: GET /v1beta/models (if GenAI-compatible)
 Cross-reference with scraped website data to fill gaps
 Query model-specific endpoints if available (e.g. GET /v1/models/{model_id})
-5.3 API Documentation Parsing
+
+### 5.3 API Documentation Parsing
 For each provider:
 
 Identify the documentation URL (from providers.json or auto-discovered)
@@ -513,7 +527,8 @@ Available endpoints (especially models-related)
 Rate limits
 Validate discovered endpoints with a test request where possible
 Update providers.json with discovered API details (self-improving config)
-5.4 Model Detail Enrichment (Optional)
+
+### 5.4 Model Detail Enrichment (Optional)
 If a provider exposes per-model detail pages or API endpoints:
 
 Construct model detail URLs using the pattern from sample_model_url or API convention
@@ -525,8 +540,9 @@ Fine-tuning availability
 Modality support
 
 
-6. Output
-6.1 Primary Output: MODELS.json
+## 6. Output
+
+### 6.1 Primary Output: MODELS.json
 Written to a configurable output path (default: ./MODELS.json). This is the authoritative machine-readable database.
 
 > **[IMPL]** MODELS.json is also the canonical state store - read it as input for merge logic (Section 4.3) and soft-delete detection (available:false).
@@ -537,11 +553,13 @@ Update behaviour:
 
 Full refresh (default): Replace the entire file with fresh data
 Incremental update (flag): Only update models from specified providers, merge with existing data for other providers
-6.2 Companion Output: MODELS.md
+
+### 6.2 Companion Output: MODELS.md
 A human-readable Markdown companion generated from MODELS.json. Grouped by provider, with tables per model.
 
 Format:
 
+```
 # MODELS.md — LLM Models Registry
 
 *Last updated: 2026-06-13T12:00:00Z*
@@ -555,7 +573,9 @@ Format:
 | MiniMax-M2.7 | OpenAI | 200K | 131K | $0.30 | $1.20 | $0.30 | $0.30 |
 
 
-7. Change Detection
+```
+
+## 7. Change Detection
 Before overwriting MODELS.json:
 
 Generate a candidate file
@@ -564,7 +584,8 @@ Log the diff to a changelog (models_changelog.jsonl)
 Optionally notify (console output, OpenClaw message, or file) about significant changes (price changes > threshold, new models, deprecated models)
 
 
-8. CLI Interface
+## 8. CLI Interface
+```
 # Full update across all providers
 
 models-registry update
@@ -614,8 +635,11 @@ models-registry cache clear
 models-registry update --parallel 3
 
 
-9. Error Handling & Resilience
-9.1 Failure Modes
+```
+
+## 9. Error Handling & Resilience
+
+### 9.1 Failure Modes
 Failure
 	Behaviour
 
@@ -633,7 +657,8 @@ Schema validation failure on scraped data
 
 Rate limiting from provider
 	Exponential backoff with jitter; respect Retry-After headers
-9.2 Circuit Breaker
+
+### 9.2 Circuit Breaker
 For providers that repeatedly fail:
 
 - After 3 consecutive failures: mark provider as "unhealthy"
@@ -641,15 +666,17 @@ For providers that repeatedly fail:
 - After timeout: allow single test request
 - If test succeeds: close circuit, resume normal operation
 - Log all state transitions (open/closed/half-open)
-9.3 Data Integrity
+
+### 9.3 Data Integrity
 Never delete the existing MODELS.json before having a valid replacement
 Atomic writes: Write to a temp file, validate it, then os.replace() into place
 Keep backups: Rotate last N versions (default: 5)
 Changelog: Append every change to models_changelog.jsonl with timestamp and diff
 
 
-10. Dependencies
-10.1 Python Packages
+## 10. Dependencies
+
+### 10.1 Python Packages
 pydantic>=2.0
 
 httpx>=0.27
@@ -663,6 +690,7 @@ rich>=13.0            # Beautiful CLI output
 aiofiles>=23.0        # Async file I/O — **listed for future use, not currently imported** (file writes are sync via `orjson`)
 
 orjson>=3.9           # Fast JSON serialization
+
 ### 10.2 External Services
 
 | Service | Purpose | Required for `--enrich`? | Required for plain `update`? | Credential |
@@ -682,6 +710,7 @@ orjson>=3.9           # Fast JSON serialization
 
 
 ## 11. Roadmap / Phases
+
 Phase 1 — Core (MVP)
 Specification document (this file)
 providers.json config loader with validation
@@ -708,7 +737,7 @@ Web dashboard (optional)
 OpenClaw integration (notifications via message)
 
 
-12. Resolved Decisions
+## 12. Resolved Decisions
 
 The following questions have been answered and are implemented in this specification:
 
@@ -727,7 +756,7 @@ The following questions have been answered and are implemented in this specifica
 - Current coverage by provider (v1.3): Wisgate 99/99, OpenRouter 333/337, CometAPI 109/578 (sitemap-gated), Requesty 512/512
 
 
-13. Implementation Approach
+## 13. Implementation Approach
 
 The tool SHALL be organised as a Python package with clear separation between configuration, discovery, normalisation, and output concerns:
 
