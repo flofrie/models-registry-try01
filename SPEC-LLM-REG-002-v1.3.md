@@ -1,21 +1,25 @@
-LLM Models Registry — Software Specification
+# LLM Models Registry — Software Specification
+
 Document ID: SPEC-LLM-REG-002
+
 Version: 1.3
+
 Date: 2026-06-14
+
 Author: Florian Friedrich
+
 Status: Active
-
-> v1.3 changes from v1.2: Requesty base URL corrected to `https://router.requesty.ai/v1`. Requesty moved to a dedicated API client (not OpenAI-compatible). LLM extractor marked as future work — current implementation is fully deterministic (regex/table parsing). Coverage notes added for CometAPI (sitemap-gated). `openclaw_provider_keys` removed from `providers.json` — the `openclaw_provider_key` field on each model entry is now derived uniformly as `{provider_id}-{api_type_lowercased}` (e.g. `wisgate-anthropic`, `requesty-google`).
-> **Schema refactor:** the per-provider `api` block + `api_types` array were replaced by a single `endpoints: [...]` array. Each entry is one real API surface the provider exposes (e.g. one `openai` for OpenAI-compatible, one `anthropic` for Anthropic-Messages-shaped, one `google` for GenAI-shaped), each with its own `base_url` and `auth`. The discovery endpoint is the one with `models_endpoint` set (typically the `openai` one). `api_type` values on model entries are now lowercase: `openai` / `anthropic` / `google`.
-
 
 ## 1. Overview
 
 ### 1.1 Purpose
+
 The LLM Models Registry is a software tool that maintains an up-to-date, machine-readable database of available large language models (LLMs) across multiple API providers. It mirrors and extends the existing MODELS.json file currently populated for Wisgate, and generalises the process to any number of configurable providers.
 
 ### 1.2 Scope
+
 In scope: Scraping provider websites for model listings, pricing, and capabilities; querying provider APIs for model metadata; normalising heterogeneous data into a common schema; outputting MODELS.json and an optional human-readable MODELS.md.
+
 Out of scope: Real-time model availability monitoring, performance benchmarking, model quality evaluation, direct integration with OpenClaw configuration (that lives in a separate layer).
 
 ### 1.3 Target Providers (Initial)
@@ -36,68 +40,51 @@ The provider list must be configurable, allowing addition, removal, or modificat
 
 ### 2.1 High-Level Flow
 
-
+```
 ┌─────────────────────────────────────────────────────┐
-
-│                  Provider Config                     │
-
-│  (JSON: URLs, API types, scraping strategy, auth)    │
-
+│                  Provider Config                    │
+│  (JSON: URLs, API types, scraping strategy, auth)   │
 └────────────────────────┬────────────────────────────┘
-
                          │
-
          ┌───────────────┼───────────────┐
-
          ▼               ▼               ▼
-
    ┌──────────┐   ┌──────────┐   ┌──────────┐
-
    │ Website  │   │   API    │   │   API    │
-
    │ Scraper  │   │  Docs    │   │  Query   │
-
    │          │   │ Parser   │   │(list     │
-
    │ (JS-heavy│   │          │   │  models) │
-
    │  pages)  │   │          │   │          │
-
    └────┬─────┘   └────┬─────┘   └────┬─────┘
-
         │              │              │
-
         └──────────────┼──────────────┘
-
                        ▼
-
          ┌─────────────────────────┐
-
          │    Data Normaliser      │
-
          │  (unified schema,       │
-
          │   validation, dedup)    │
-
          └────────────┬────────────┘
-
                       ▼
-
          ┌─────────────────────────┐
-
          │    Output Generator     │
-
          │  MODELS.json + MODELS.md│
-
          └─────────────────────────┘
+```
+
 
 ### 2.2 Components
+
 Provider Configuration Loader — reads providers.json, validates entries, resolves authentication credentials
+
 Website Scraper — crawls JS-heavy provider pages using a headless browser (Playwright/Puppeteer) or a dedicated scraping API (Firecrawl)
+
 API Documentation Parser — extracts API base URLs, endpoint paths, and authentication schemes from provider docs
+
 API Model Lister — calls provider APIs (e.g. /v1/models, /models) to programmatically enumerate available models
+
 Data Normaliser — maps provider-specific fields to the common schema, deduplicates, validates
+
 LLM Extraction Cache — caches LLM-parsed results to avoid redundant calls
+
 Output Generator — writes MODELS.json and an optional human-readable MODELS.md
 
 ### 2.3 Technology Choices
@@ -117,32 +104,24 @@ Output Generator — writes MODELS.json and an optional human-readable MODELS.md
 ## 3. Configuration
 
 ### 3.1 Provider Configuration File (providers.json)
+
 This is the central configuration file. Each provider entry specifies how to discover its models.
 
 This is an example, and the actual initial providers.json file should be created and populated as part of the tool design process.
 
 NOTE: The example below shows a simplified single-API structure. Providers like Wisgate expose multiple API types (OpenAI, Anthropic, Google), each with different base URLs. The  field should be an array to support multiple APIs per provider, e.g.: . The initial providers.json will be created and fully populated as part of the tool design/implementation process.
 
+```
 {
-
   "version": "1.0",
-
   "providers": [
-
     {
-
       "id": "wisgate",
-
       "name": "Wisgate",
-
       "website": {
-
         "models_page": "https://wisgate.ai/models",
-
         "scraping_strategy": "firecrawl"
-
       },
-
       "endpoints": [
         {
           "type": "openai",
@@ -164,23 +143,14 @@ NOTE: The example below shows a simplified single-API structure. Providers like 
           "auth": { "method": "bearer_token", "env_var": "WISGATE_API_KEY" }
         }
       ]
-
     },
-
     {
-
       "id": "openrouter",
-
       "name": "OpenRouter",
-
       "website": {
-
         "models_page": "https://openrouter.ai/models",
-
         "scraping_strategy": "none"
-
       },
-
       "endpoints": [
         {
           "type": "openai",
@@ -196,23 +166,14 @@ NOTE: The example below shows a simplified single-API structure. Providers like 
           "notes": "Wire the Anthropic SDK via ANTHROPIC_BASE_URL + ANTHROPIC_AUTH_TOKEN. Native x-api-key is not accepted."
         }
       ]
-
     },
-
     {
-
       "id": "requesty",
-
       "name": "Requesty",
-
       "website": {
-
         "models_page": "https://requesty.ai/models",
-
         "scraping_strategy": "firecrawl"
-
       },
-
       "endpoints": [
         {
           "type": "openai",
@@ -228,25 +189,15 @@ NOTE: The example below shows a simplified single-API structure. Providers like 
           "notes": "Exposes ALL Requesty models (including OpenAI/Google/Mistral) through the Anthropic SDK surface. Wire via ANTHROPIC_BASE_URL + ANTHROPIC_AUTH_TOKEN."
         }
       ]
-
     },
-
     {
-
       "id": "cometapi",
-
       "name": "CometAPI",
-
       "website": {
-
         "models_page": "https://www.cometapi.com/models",
-
         "sample_model_url": "https://www.cometapi.com/models/anthropic/claude-opus-4-8",
-
         "scraping_strategy": "firecrawl"
-
       },
-
       "endpoints": [
         {
           "type": "openai",
@@ -268,28 +219,18 @@ NOTE: The example below shows a simplified single-API structure. Providers like 
           "auth": { "method": "bearer_token", "env_var": "COMET_API_KEY" }
         }
       ]
-
     }
-
   ],
-
   "settings": {
-
     "max_concurrent_requests": 5,
-
     "request_timeout_seconds": 30,
-
     "retry_attempts": 3,
-
     "retry_backoff_factor": 2.0,
-
     "llm_cache_ttl_hours": 24,
-
     "backup_count": 5
-
   }
-
 }
+```
 
 ### 3.2 Configuration Schema
 
@@ -321,7 +262,7 @@ NOTE: The example below shows a simplified single-API structure. Providers like 
 | auth.required | bool | ✅ (`true`) | Whether the discovery endpoint refuses unauthenticated requests. Set to `false` for providers whose `/v1/models` is public (OpenRouter and Requesty both serve 200 anonymously). When `false`, the env var may be unset and no `Authorization` header is sent. **Always verify by hand before declaring a provider public** — don't guess. |
 | notes | string | ❌ | Free-form notes for documented quirks (e.g. `"Native x-api-key is not accepted; wire via ANTHROPIC_AUTH_TOKEN."`) |
 
-> A provider typically exposes 1–3 endpoint entries. The `openai` endpoint is universal. The `anthropic` and `google` endpoints are only declared if the provider actually serves them — a provider without a `google` entry cannot route models to a google-style wire, so Gemini models on that provider fall back to `openai`.
+A provider typically exposes 1–3 endpoint entries. The `openai` endpoint is universal. The `anthropic` and `google` endpoints are only declared if the provider actually serves them — a provider without a `google` entry cannot route models to a google-style wire, so Gemini models on that provider fall back to `openai`.
 
 ### Global Settings Schema
 
@@ -347,93 +288,55 @@ NOTE: The example below shows a simplified single-API structure. Providers like 
 ## 4. Data Model
 
 ### 4.1 Common Schema (MODELS.json)
+
 Each model entry in the output MODELS.json SHALL conform to this schema:
 
+```
 {
-
   // The model key is always prefixed with the provider ID.
-
   // It MUST be unique across all providers.  Format: "{provider}_{model_id}" — always prefixed, no collision logic
-
   // This ensures stable, predictable keys regardless of which providers are configured.
 
   "<model_key>": {
-
     "model_id": "string",          // Provider's native model identifier
-
     "provider": "string",          // Provider id from providers.json
-
     "display_name": "string",      // Optional human-friendly name
-
     "api_type": "string",          // "openai" | "anthropic" | "google" | "other"  (lowercase, v1.3)
-
     "openclaw_provider_key": "string",
-
     "context_window": "number",    // Total context window size
-
     "max_output_tokens": "number",  // Maximum tokens the model can generate
-
     "pricing": {
-
       "input_per_1m": "number",       // USD per 1M input tokens
-
       "output_per_1m": "number",      // USD per 1M output tokens
-
       "cache_read_per_1m": "number | null",  // USD per 1M cache-read tokens
-
       "cache_write_per_1m": "number | null", // USD per 1M cache-write tokens
-
       "image_input": "number | null",        // USD per image (if applicable)
-
       "audio_input_per_1m": "number | null"  // USD per 1M audio tokens
-
     },
-
     "capabilities": {              // Optional: what the model supports
-
       "vision": "boolean | null",
-
       "audio": "boolean | null",
-
       "tool_use": "boolean | null",
-
       "structured_output": "boolean | null",
-
       "streaming": "boolean | null",
-
       "thinking": "boolean | null"
-
     },
-
     "rate_limits": {               // Optional: RPM/TPM limits if known
-
       "requests_per_minute": "number | null",
-
       "tokens_per_minute": "number | null"
-
     },
-
     "available": "boolean",        // Currently listed/enabled by provider
-
     "deprecated": "boolean",       // Marked as deprecated/sunsetting
-
     "notes": "string | null",      // Free-form notes (quirks, observations)
-
     "last_updated": "string",      // ISO 8601 timestamp of when this entry was last refreshed
-
     "source": {                    // Provenance: where this data came from
-
       "url": "string | null",      // URL scraped or API endpoint queried
-
       "method": "string",          // "scrape" | "api" | "docs" | "manual"
-
       "scraped_at": "string"       // ISO 8601 timestamp
-
     }
-
   }
-
 }
+```
 
 ### 4.2 Field Derivation Rules
 
@@ -454,8 +357,11 @@ These rules define how to populate the common schema from heterogeneous provider
 When a model exists in the current MODELS.json and new data is scraped:
 
 New fields: Add without removing existing data (merge)
+
 Conflicting fields: Overwrite with new data; take data as it comes with no priority ordering
+
 Missing models: Mark available: false and add notes: "No longer listed by provider as of {date}"
+
 New models: Add with all available fields; leave unknown fields as null
 
 
@@ -466,14 +372,21 @@ New models: Add with all available fields; leave unknown fields as null
 > **[IMPL]** The orchestrator calls API Query first, then invokes Website Scraper only for gaps. API-first is mandatory - scraping is never the primary path.
 
 ### 5.1 Website Scraping
+
 For each provider with scraping_strategy != "none":
 
 Load the models page using the configured strategy
+
 Extract structured data:
+
 Tier 1: Deterministic — use CSS/Playwright selectors or regex patterns hard-coded per provider
+
 Tier 2: LLM fallback — if Tier 1 returns less than 50 percent of expected fields, use LLM to parse against target schema
+
 For each model entry found, attempt to follow the detail page URL if available (for additional metadata)
+
 Normalise extracted fields to the common schema
+
 Flag uncertainties: If a value is ambiguous (e.g., multiple prices listed), mark it and log the ambiguity
 
 Tier 3: Verification mode (optional) — After deterministic extraction, sample 3 random models and use LLM to parse their detail pages; compare results and log discrepancies if found
@@ -503,46 +416,70 @@ The cache stores:
 - Timestamp
 
 On cache hit: return cached result
+
 On cache miss: call LLM, store result, return
 
 ### 5.2 API Model Discovery
+
 For each provider with api.models_endpoint configured:
 
 Call the models endpoint with appropriate authentication
+
 Parse the response:
+
 OpenAI-compatible: GET /v1/models → { data: [ { id, owned_by, ... } ] }
+
 Anthropic: Not all providers expose this natively; map via the overlay API
+
 Google: GET /v1beta/models (if GenAI-compatible)
+
 Cross-reference with scraped website data to fill gaps
+
 Query model-specific endpoints if available (e.g. GET /v1/models/{model_id})
 
 ### 5.3 API Documentation Parsing
+
 For each provider:
 
 Identify the documentation URL (from providers.json or auto-discovered)
+
 Scrape the API reference pages for:
+
 Base URL
+
 Authentication scheme
+
 Available endpoints (especially models-related)
+
 Rate limits
+
 Validate discovered endpoints with a test request where possible
+
 Update providers.json with discovered API details (self-improving config)
 
 ### 5.4 Model Detail Enrichment (Optional)
+
 If a provider exposes per-model detail pages or API endpoints:
 
 Construct model detail URLs using the pattern from sample_model_url or API convention
+
 Scrape/query each model individually for deep metadata:
+
 Full capabilities list
+
 Rate limits
+
 Deprecation notices
+
 Fine-tuning availability
+
 Modality support
 
 
 ## 6. Output
 
 ### 6.1 Primary Output: MODELS.json
+
 Written to a configurable output path (default: ./MODELS.json). This is the authoritative machine-readable database.
 
 > **[IMPL]** MODELS.json is also the canonical state store - read it as input for merge logic (Section 4.3) and soft-delete detection (available:false).
@@ -552,9 +489,11 @@ File structure: A single JSON object where keys are model identifiers and values
 Update behaviour:
 
 Full refresh (default): Replace the entire file with fresh data
+
 Incremental update (flag): Only update models from specified providers, merge with existing data for other providers
 
 ### 6.2 Companion Output: MODELS.md
+
 A human-readable Markdown companion generated from MODELS.json. Grouped by provider, with tables per model.
 
 Format:
@@ -567,24 +506,26 @@ Format:
 ## Wisgate (88 models)
 
 | Model ID | API Type | Context | Max Output | Input $/1M | Output $/1M | Cache Read | Cache Write |
-
 |----------|----------|---------|------------|------------|-------------|------------|-------------|
-
 | MiniMax-M2.7 | OpenAI | 200K | 131K | $0.30 | $1.20 | $0.30 | $0.30 |
-
 
 ```
 
 ## 7. Change Detection
+
 Before overwriting MODELS.json:
 
 Generate a candidate file
+
 Diff against current MODELS.json
+
 Log the diff to a changelog (models_changelog.jsonl)
+
 Optionally notify (console output, OpenClaw message, or file) about significant changes (price changes > threshold, new models, deprecated models)
 
 
 ## 8. CLI Interface
+
 ```
 # Full update across all providers
 
@@ -640,25 +581,17 @@ models-registry update --parallel 3
 ## 9. Error Handling & Resilience
 
 ### 9.1 Failure Modes
-Failure
-	Behaviour
 
-Provider website unreachable
-	Log error, skip provider, continue with others
-
-API auth failure
-	Log error with provider name, skip API discovery for that provider
-
-Data extraction fails (no models found)
-	Log warning, keep existing data for that provider, do not overwrite with empty
-
-Schema validation failure on scraped data
-	Log validation errors per model, still write valid models
-
-Rate limiting from provider
-	Exponential backoff with jitter; respect Retry-After headers
+| Failure | Behaviour |
+| --- | --- |
+| Provider website unreachable | 	Log error, skip provider, continue with others |
+| API auth failure | 	Log error with provider name, skip API discovery for that provider |
+| Data extraction fails (no models found) | 	Log warning, keep existing data for that provider, do not overwrite with empty |
+| Schema validation failure on scraped data | 	Log validation errors per model, still write valid models |
+| Rate limiting from provider | 	Exponential backoff with jitter; respect Retry-After headers |
 
 ### 9.2 Circuit Breaker
+
 For providers that repeatedly fail:
 
 - After 3 consecutive failures: mark provider as "unhealthy"
@@ -668,15 +601,20 @@ For providers that repeatedly fail:
 - Log all state transitions (open/closed/half-open)
 
 ### 9.3 Data Integrity
+
 Never delete the existing MODELS.json before having a valid replacement
+
 Atomic writes: Write to a temp file, validate it, then os.replace() into place
+
 Keep backups: Rotate last N versions (default: 5)
+
 Changelog: Append every change to models_changelog.jsonl with timestamp and diff
 
 
 ## 10. Dependencies
 
 ### 10.1 Python Packages
+
 pydantic>=2.0
 
 httpx>=0.27
@@ -711,29 +649,52 @@ orjson>=3.9           # Fast JSON serialization
 
 ## 11. Roadmap / Phases
 
-Phase 1 — Core (MVP)
+### Phase 1 — Core (MVP)
+
 Specification document (this file)
+
 providers.json config loader with validation
+
 Wisgate website scraper (Firecrawl + selectors)
+
 Data normaliser with Pydantic schema
+
 MODELS.json output writer
+
 CLI: update, validate
-Phase 2 — Multi-Provider
+
+### Phase 2 — Multi-Provider
+
 OpenRouter scraper
+
 Requesty scraper
+
 API model discovery (OpenAI-compatible /models endpoint)
+
 Incremental merge mode
+
 MODELS.md generator
+
 LLM extraction cache
-Phase 3 — Automation
+
+### Phase 3 — Automation
+
 Change detection and diff logging
+
 Provider self-healing (API endpoint discovery from docs)
+
 Per-model detail enrichment
+
 Circuit breaker for failing providers
-Phase 4 — Polish
+
+### Phase 4 — Polish
+
 Changelog viewer
+
 Price change alerts (threshold-based)
+
 Web dashboard (optional)
+
 OpenClaw integration (notifications via message)
 
 
@@ -822,118 +783,100 @@ a pointer.
 
 ---
 
-Appendix A: Provider Website Analysis
+## Appendix A: Provider Website Analysis
 
-A.4 CometAPI (https://www.cometapi.com/models/)
+## A.4 CometAPI (https://www.cometapi.com/models/)
+
 Type: Static model listing page
+
 Content: Model name, provider (Anthropic/OpenAI/Google), context window, input/output pricing
+
 API endpoint: https://api.cometapi.com/v1/models (OpenAI-compatible, requires key)
+
 Note: Comprehensive model catalogue; API returns pricing and context length data
-A.1 Wisgate (https://wisgate.ai/pricing)
+
+## A.1 Wisgate (https://wisgate.ai/pricing)
+
 Type: JS-heavy single-page pricing table
+
 Content: Model name, context window, input price, output price per 1M tokens
+
 Extraction strategy: Firecrawl scrape → LLM parse markdown table → structured data
+
 Missing from website: API type per model (OpenAI vs Anthropic vs Google), max output tokens, cache pricing
+
 API endpoint: https://api.wisgate.ai/v1/models (OpenAI-compatible, requires key)
-A.2 OpenRouter (https://openrouter.ai/models)
+
+### A.2 OpenRouter (https://openrouter.ai/models)
+
 Type: JS-heavy interactive model browser with filters
+
 Content: Model name, provider, context length, prompt price, completion price, capabilities tags
+
 API endpoint: https://openrouter.ai/api/v1/models (returns full model list with pricing)
+
 Advantage: The API returns richer data than the website — API-first approach recommended
-A.3 Requesty (https://requesty.ai/models)
+
+### A.3 Requesty (https://requesty.ai/models)
+
 Type: JS-rendered model listing
+
 Content: Model names, pricing tiers
+
 API endpoint: https://router.requesty.ai/v1/models (custom JSON format — NOT OpenAI-compatible; prices in $/token at top level, plus capability flags)
+
 Note: v1.3 — uses a dedicated `RequestyModelsClient` (not the OpenAI-compatible path). 512 models exposed, 506 with pricing.
 
 
-Appendix B: Existing MODELS.json Structure (for reference)
-Current file: ~/.openclaw/workspace/MODELS.json
+## Appendix B: Example Model Entry (Target Format)
 
-88 models from Wisgate
-Schema fields: model_id, provider, api_type, openclaw_provider_key, context_window, max_output_tokens, pricing (input/output/cache read/cache write per 1M), available, optional notes
-
-
-Appendix C: Example Model Entry (Target Format)
+```
 {
-
   "wisgate_deepseek-v4-pro": {
-
     "model_id": "deepseek-v4-pro",
-
     "provider": "wisgate",
-
     "display_name": "DeepSeek V4 Pro",
-
     "api_type": "OpenAI",
-
     "openclaw_provider_key": "wisgate-openai",
-
     "context_window": 200000,
-
     "max_output_tokens": 32000,
-
     "pricing": {
-
       "input_per_1m": 2.0,
-
       "output_per_1m": 8.0,
-
       "cache_read_per_1m": 0.20,
-
       "cache_write_per_1m": 2.50,
-
       "image_input": null,
-
       "audio_input_per_1m": null
-
     },
-
     "capabilities": {
-
       "vision": false,
-
       "audio": false,
-
       "tool_use": true,
-
       "structured_output": true,
-
       "streaming": true,
-
       "thinking": true
-
     },
-
     "rate_limits": {
-
       "requests_per_minute": null,
-
       "tokens_per_minute": null
-
     },
-
     "available": true,
-
     "deprecated": false,
-
     "notes": null,
-
     "last_updated": "2026-06-13T11:00:00Z",
-
     "source": {
-
       "url": "https://wisgate.ai/pricing",
-
       "method": "scrape",
-
       "scraped_at": "2026-06-13T11:00:00Z"
-
     }
-
   }
-
 }
+```
 
+## Document Version History
+
+* v1.3 changes from v1.2: 
+  - Requesty base URL corrected to `https://router.requesty.ai/v1`. Requesty moved to a dedicated API client (not OpenAI-compatible). LLM extractor marked as future work — current implementation is fully deterministic (regex/table parsing). Coverage notes added for CometAPI (sitemap-gated). `openclaw_provider_keys` removed from `providers.json` — the `openclaw_provider_key` field on each model entry is now derived uniformly as `{provider_id}-{api_type_lowercased}` (e.g. `wisgate-anthropic`, `requesty-google`).
+  - **Schema refactor:** the per-provider `api` block + `api_types` array were replaced by a single `endpoints: [...]` array. Each entry is one real API surface the provider exposes (e.g. one `openai` for OpenAI-compatible, one `anthropic` for Anthropic-Messages-shaped, one `google` for GenAI-shaped), each with its own `base_url` and `auth`. The discovery endpoint is the one with `models_endpoint` set (typically the `openai` one). `api_type` values on model entries are now lowercase: `openai` / `anthropic` / `google`.
 
 End of specification.
