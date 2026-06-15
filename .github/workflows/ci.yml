@@ -9,19 +9,19 @@ jobs:
   test:
     name: pytest
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        python-version: ["3.12"]
+    # No Python matrix — pyproject.toml requires-python=">=3.12", so a
+    # single version on the latest stable 3.12 is sufficient. Keeping
+    # the check name exactly "pytest" makes it match the required
+    # context in the branch protection rule (no "(3.12)" suffix).
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up Python ${{ matrix.python-version }}
+      - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: ${{ matrix.python-version }}
+          python-version: "3.12"
           cache: pip
 
       - name: Install dependencies
