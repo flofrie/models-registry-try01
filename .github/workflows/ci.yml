@@ -1,0 +1,56 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  test:
+    name: pytest
+    runs-on: ubuntu-latest
+    # No Python matrix — pyproject.toml requires-python=">=3.12", so a
+    # single version on the latest stable 3.12 is sufficient. Keeping
+    # the check name exactly "pytest" makes it match the required
+    # context in the branch protection rule (no "(3.12)" suffix).
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+
+      - name: Run tests
+        run: pytest tests/ -q
+
+  lint:
+    name: ruff
+    runs-on: ubuntu-latest
+    # Non-blocking: surfaces style issues without blocking merges. Flip
+    # `continue-on-error: false` to make it required once you've
+    # triaged the existing noise.
+    continue-on-error: true
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install ruff
+        run: pip install ruff
+
+      - name: Lint
+        run: ruff check .
