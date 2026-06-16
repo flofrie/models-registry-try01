@@ -8,6 +8,7 @@ from rich.console import Console
 from llm_registry.config.loader import load_config
 from llm_registry.discovery.api import discover_from_api, discover_from_requesty
 from llm_registry.discovery.scraping import scrape_with_firecrawl
+from llm_registry.merge import merge_model_entries
 from llm_registry.normalise import normalize_wisgate_markdown
 from llm_registry.normalise.cometapi import (
     build_slug_to_url_map,
@@ -146,7 +147,8 @@ async def _update(provider_ids: tuple, dry_run: bool, force: bool, enrich: bool)
         # Merge into all_models - use api_type from endpoint_types for cometapi
         for entry in api_entries:
             key = f"{prov.id}_{entry.model_id}"
-            all_models[key] = entry
+            existing = all_models.get(key)
+            all_models[key] = merge_model_entries(existing, entry) if existing else entry
 
     console.print(f"\n[bold]Total models: {len(all_models)}[/bold]")
 
