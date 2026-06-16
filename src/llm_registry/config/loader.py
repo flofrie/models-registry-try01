@@ -10,8 +10,26 @@ class WebsiteConfig(BaseModel):
     """Website scraping configuration for a provider."""
     models_page: str
     sample_model_url: Optional[str] = None
+    model_url_template: Optional[str] = None
     scraping_strategy: str = "none"  # firecrawl, playwright, http, none
     selectors: Optional[dict] = None
+
+    def has_model_detail_url_strategy(self) -> bool:
+        """Return whether per-model detail URLs can be built safely."""
+        return bool(self.model_url_template or _is_model_url_template(self.sample_model_url))
+
+    def model_detail_url(self, model_id: str) -> str:
+        """Build a model detail URL from an explicit template."""
+        template = self.model_url_template
+        if template is None and _is_model_url_template(self.sample_model_url):
+            template = self.sample_model_url
+        if template is None:
+            raise ValueError("No model detail URL template configured")
+        return template.format(model_id=model_id)
+
+
+def _is_model_url_template(value: Optional[str]) -> bool:
+    return bool(value and "{model_id}" in value)
 
 
 class AuthConfig(BaseModel):

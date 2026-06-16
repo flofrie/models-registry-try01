@@ -6,6 +6,7 @@
       "name": "Wisgate",
       "website": {
         "models_page": "https://wisgate.ai/models",
+        "model_url_template": "https://wisgate.ai/models/{model_id}",
         "scraping_strategy": "firecrawl"
       },
       "endpoints": [

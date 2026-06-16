@@ -121,12 +121,14 @@ async def _update(provider_ids: tuple, dry_run: bool, force: bool, enrich: bool)
 
             if prov.id == "cometapi":
                 await _enrich_cometapi(prov, api_entries, console)
+            elif not prov.website.has_model_detail_url_strategy():
+                console.print("  → Skipping detail-page enrichment: no model URL template")
             else:
-                # Wisgate and others: scrape individual pages
+                # Template-backed providers: scrape individual pages.
                 models_needing_pricing = [e for e in api_entries if not e.pricing]
                 for entry in models_needing_pricing:
                     try:
-                        model_url = f"{prov.website.models_page}/{entry.model_id}"
+                        model_url = prov.website.model_detail_url(entry.model_id)
                         console.print(f"    → {entry.model_id}")
                         markdown = await scrape_with_firecrawl(model_url)
 
