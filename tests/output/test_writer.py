@@ -31,7 +31,7 @@ def test_generate_markdown_includes_spec_columns(tmp_path):
         "| Model ID | API Type | Context | Max Output | Input $/1M | Output $/1M | "
         "Cache Read | Cache Write |"
     ) in markdown
-    assert "| requesty (2 models)" in markdown
+    assert "| Requesty (2 models)" in markdown
     assert (
         "| example-full | openai | 200K | 131K | $0.30 | $1.20 | $0.10 | $0.20 |"
     ) in markdown
