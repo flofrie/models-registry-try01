@@ -109,7 +109,7 @@ This is the central configuration file. Each provider entry specifies how to dis
 
 This is an example, and the actual initial providers.json file should be created and populated as part of the tool design process.
 
-NOTE: The example below shows a simplified single-API structure. Providers like Wisgate expose multiple API types (OpenAI, Anthropic, Google), each with different base URLs. The  field should be an array to support multiple APIs per provider, e.g.: . The initial providers.json will be created and fully populated as part of the tool design/implementation process.
+NOTE: The example below shows the current multi-endpoint provider structure. Providers like Wisgate expose multiple API types (OpenAI, Anthropic, Google), each with different base URLs, so the `endpoints` field is an array of API surface definitions.
 
 ```
 {
@@ -501,13 +501,13 @@ Format:
 ```
 # MODELS.md — LLM Models Registry
 
-*Last updated: 2026-06-13T12:00:00Z*
+*Last updated: 2026-06-15T12:00:00Z*
 
 ## Wisgate (88 models)
 
 | Model ID | API Type | Context | Max Output | Input $/1M | Output $/1M | Cache Read | Cache Write |
 |----------|----------|---------|------------|------------|-------------|------------|-------------|
-| MiniMax-M2.7 | OpenAI | 200K | 131K | $0.30 | $1.20 | $0.30 | $0.30 |
+| MiniMax-M2.7 | openai | 200K | 131K | $0.30 | $1.20 | $0.30 | $0.30 |
 
 ```
 
@@ -837,7 +837,7 @@ Note: Comprehensive model catalogue; API returns pricing and context length data
     "model_id": "deepseek-v4-pro",
     "provider": "wisgate",
     "display_name": "DeepSeek V4 Pro",
-    "api_type": "OpenAI",
+    "api_type": "openai",
     "openclaw_provider_key": "wisgate-openai",
     "context_window": 200000,
     "max_output_tokens": 32000,
@@ -864,7 +864,7 @@ Note: Comprehensive model catalogue; API returns pricing and context length data
     "available": true,
     "deprecated": false,
     "notes": null,
-    "last_updated": "2026-06-13T11:00:00Z",
+    "last_updated": "2026-06-15T11:00:00Z",
     "source": {
       "url": "https://wisgate.ai/pricing",
       "method": "scrape",
