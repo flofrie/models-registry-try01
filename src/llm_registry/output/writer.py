@@ -45,8 +45,10 @@ def write_models_json(
         backup_dir = output_path.parent / ".backups"
         backup_dir.mkdir(exist_ok=True)
 
-        # Move current to backup
-        backup_path = backup_dir / f"{output_path.stem}.backup.json"
+        # Copy current output to a unique backup so rotation can retain
+        # multiple historical versions instead of overwriting one file.
+        backup_timestamp = datetime.utcnow().strftime("%Y%m%dT%H%M%S%fZ")
+        backup_path = backup_dir / f"{output_path.stem}.backup.{backup_timestamp}.json"
         shutil.copy2(output_path, backup_path)
 
         # Keep only N backups
