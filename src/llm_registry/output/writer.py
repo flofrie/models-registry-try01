@@ -94,15 +94,31 @@ def generate_markdown(models: dict[str, ModelEntry], output_path: Optional[Path]
     for provider, entries in sorted(by_provider.items()):
         lines.append(f"## {provider.capitalize()} ({len(entries)} models)")
         lines.append("")
-        lines.append("| Model ID | API Type | Context | Input $/1M | Output $/1M |")
-        lines.append("|----------|----------|---------|------------|-------------|")
+        lines.append(
+            "| Model ID | API Type | Context | Max Output | Input $/1M | Output $/1M | "
+            "Cache Read | Cache Write |"
+        )
+        lines.append(
+            "|----------|----------|---------|------------|------------|-------------|"
+            "------------|-------------|"
+        )
 
         for entry in sorted(entries, key=lambda e: e.model_id):
             ctx = _format_context(entry.context_window)
+            max_out = _format_context(entry.max_output_tokens)
             inp = _format_price(entry.pricing.input_per_1m if entry.pricing else None)
             out = _format_price(entry.pricing.output_per_1m if entry.pricing else None)
+            cache_read = _format_price(
+                entry.pricing.cache_read_per_1m if entry.pricing else None
+            )
+            cache_write = _format_price(
+                entry.pricing.cache_write_per_1m if entry.pricing else None
+            )
 
-            lines.append(f"| {entry.model_id} | {entry.api_type or '-'} | {ctx} | {inp} | {out} |")
+            lines.append(
+                f"| {entry.model_id} | {entry.api_type or '-'} | {ctx} | {max_out} | "
+                f"{inp} | {out} | {cache_read} | {cache_write} |"
+            )
 
         lines.append("")
 
