@@ -5,6 +5,7 @@ from typing import Optional
 import httpx
 
 from llm_registry.discovery.api._keys import openclaw_provider_key
+from llm_registry.discovery.api.inference import infer_api_type
 from llm_registry.schema.model_entry import Capabilities, ModelEntry, Pricing
 
 
@@ -57,7 +58,7 @@ class OpenAIModelsClient:
         # descriptions the same as present-but-blank ones.
         description = (raw.get("description") or "").strip()
 
-        api_type = self._infer_api_type(
+        api_type = infer_api_type(
             model_id, name, available_endpoint_types, description
         )
         openclaw_key = openclaw_provider_key(provider_id, api_type)
@@ -170,74 +171,8 @@ class OpenAIModelsClient:
         available_endpoint_types: set[str],
         description: str = "",
     ) -> str:
-        """Infer the API type from model id + name + (optionally) description.
-
-        Two-pass design:
-        1. Search model_id + name for a family keyword. If found, return
-           that family. This pass uses ONLY the id+name, so a clear
-           signal there (e.g. "gpt-4o") cannot be overridden by a
-           description that mentions a different family in passing
-           (e.g. "compare to Claude 3.5").
-        2. If pass 1 found no family signal, consult the description as
-           a tiebreaker. This helps when the id+name are uninformative
-           (e.g. an opaque model id) and the description is the only
-           identifying text.
-
-        Note: pass 2 can still produce false positives. A description
-        that mentions "Claude" in passing ("compatible with Claude
-        3.5", "recreate Claude-style verbosity") will tip the
-        inference to anthropic. There's no robust way to tell those
-        mentions apart from a real "this IS a Claude model" claim, so
-        the cost is documented and accepted.
-
-        Returns one of the strings in `available_endpoint_types`. If
-        no family matches, falls back to the first available type
-        (typically "openai", which every provider exposes).
-        """
-        # Pass 1: model_id + name only.
-        first = f"{model_id} {name}".lower()
-        family = self._match_family(first, available_endpoint_types)
-        if family is not None:
-            return family
-
-        # Pass 2: tiebreaker — also consult the description. Only kicks
-        # in when pass 1 found no family signal.
-        if description:
-            second = f"{model_id} {name} {description}".lower()
-            family = self._match_family(second, available_endpoint_types)
-            if family is not None:
-                return family
-
-        # Default: prefer "openai" if available (every provider exposes
-        # it), otherwise the first type in the set. Set iteration order
-        # is not guaranteed across Python versions, so we don't use it
-        # directly.
-        if "openai" in available_endpoint_types:
-            return "openai"
-        if available_endpoint_types:
-            return next(iter(available_endpoint_types))
-        return "openai"
-
-    @staticmethod
-    def _match_family(text: str, available: set[str]) -> str | None:
-        """Return the first family whose keyword appears in `text`,
-        or None if no family matches. Does NOT fall back to a default.
-        """
-        if "anthropic" in available and any(
-            t in text
-            for t in ("claude", "sonnet", "opus", "haiku", "fable", "mythos")
-        ):
-            return "anthropic"
-        if "openai" in available and any(
-            t in text
-            for t in ("gpt", "o1", "o3", "o4", "openai", "dall-e", "gpt-image", "sora")
-        ):
-            return "openai"
-        if "google" in available and any(
-            t in text for t in ("gemini", "veo", "imagen", "google")
-        ):
-            return "google"
-        return None
+        """Backward-compatible wrapper around shared inference."""
+        return infer_api_type(model_id, name, available_endpoint_types, description)
 
 
 async def discover_from_api(

@@ -5,6 +5,7 @@ from typing import Optional
 import httpx
 
 from llm_registry.discovery.api._keys import openclaw_provider_key
+from llm_registry.discovery.api.inference import infer_api_type
 from llm_registry.schema.model_entry import Capabilities, ModelEntry, Pricing
 
 
@@ -48,7 +49,7 @@ class RequestyModelsClient:
         # openai.py for symmetry even though name is always "" here.
         description = (raw.get("description") or "").strip()
 
-        api_type = self._infer_api_type(
+        api_type = infer_api_type(
             model_id, "", available_endpoint_types, description
         )
         openclaw_key = openclaw_provider_key(provider_id, api_type)
@@ -141,54 +142,8 @@ class RequestyModelsClient:
         available_endpoint_types: set[str],
         description: str = "",
     ) -> str:
-        """Infer the API type from model id + (optionally) description.
-
-        Same two-pass design as openai.py — see that docstring for the
-        rationale and the known limitation around descriptions that
-        mention other models in passing. Requesty doesn't have a
-        separate name field, so the first pass is effectively just on
-        model_id and the tiebreaker adds the description.
-        """
-        # Pass 1: model_id + name only.
-        first = f"{model_id} {name}".lower()
-        family = self._match_family(first, available_endpoint_types)
-        if family is not None:
-            return family
-
-        # Pass 2: tiebreaker — also consult the description.
-        if description:
-            second = f"{model_id} {name} {description}".lower()
-            family = self._match_family(second, available_endpoint_types)
-            if family is not None:
-                return family
-
-        # Default: prefer "openai" if available.
-        if "openai" in available_endpoint_types:
-            return "openai"
-        if available_endpoint_types:
-            return next(iter(available_endpoint_types))
-        return "openai"
-
-    @staticmethod
-    def _match_family(text: str, available: set[str]) -> str | None:
-        """Return the first family whose keyword appears in `text`,
-        or None if no family matches. Does NOT fall back to a default.
-        """
-        if "anthropic" in available and any(
-            t in text
-            for t in ("claude", "sonnet", "opus", "haiku", "fable", "mythos")
-        ):
-            return "anthropic"
-        if "openai" in available and any(
-            t in text
-            for t in ("gpt", "o1", "o3", "o4", "openai", "dall-e", "gpt-image", "sora")
-        ):
-            return "openai"
-        if "google" in available and any(
-            t in text for t in ("gemini", "veo", "imagen", "google")
-        ):
-            return "google"
-        return None
+        """Backward-compatible wrapper around shared inference."""
+        return infer_api_type(model_id, name, available_endpoint_types, description)
 
 
 async def discover_from_requesty(

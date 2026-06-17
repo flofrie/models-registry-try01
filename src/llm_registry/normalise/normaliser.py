@@ -44,7 +44,12 @@ def parse_context(context_str: str) -> Optional[int]:
     return None
 
 
-def normalize_wisgate_markdown(markdown: str, provider_id: str, target_model_id: str = None) -> list[ModelEntry]:
+def normalize_wisgate_markdown(
+    markdown: str,
+    provider_id: str,
+    target_model_id: str = None,
+    source_url: str = "https://wisgate.ai/models",
+) -> list[ModelEntry]:
     """Parse Firecrawl markdown from Wisgate into ModelEntry list.
 
     If target_model_id is provided, returns only that model's entry.
@@ -53,7 +58,13 @@ def normalize_wisgate_markdown(markdown: str, provider_id: str, target_model_id:
 
     # If we have a target model_id, try to extract just that model's info
     if target_model_id:
-        entry = _parse_model_details(markdown, provider_id, target_model_id, target_model_id.replace("-", " ").title())
+        entry = _parse_model_details(
+            markdown,
+            provider_id,
+            target_model_id,
+            target_model_id.replace("-", " ").title(),
+            source_url,
+        )
         if entry:
             return [entry]
         return []
@@ -89,13 +100,19 @@ def normalize_wisgate_markdown(markdown: str, provider_id: str, target_model_id:
         if re.match(r"^\d{4}-\d{2}-\d{2}$", model_id):
             continue
 
-        entry = _parse_model_details(markdown, provider_id, model_id, display_name)
+        entry = _parse_model_details(markdown, provider_id, model_id, display_name, source_url)
         entries.append(entry)
 
     return entries
 
 
-def _parse_model_details(markdown: str, provider_id: str, model_id: str, display_name: str) -> ModelEntry:
+def _parse_model_details(
+    markdown: str,
+    provider_id: str,
+    model_id: str,
+    display_name: str,
+    source_url: str,
+) -> ModelEntry:
     """Parse individual model detail page."""
     pricing = Pricing()
     capabilities = Capabilities()
@@ -197,7 +214,7 @@ def _parse_model_details(markdown: str, provider_id: str, model_id: str, display
         pricing=pricing,
         capabilities=capabilities if _has_capabilities(capabilities) else None,
         source={
-            "url": "https://wisgate.ai/models",
+            "url": source_url,
             "method": "scrape",
         },
 )

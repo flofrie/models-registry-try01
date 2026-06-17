@@ -132,7 +132,12 @@ async def _update(provider_ids: tuple, dry_run: bool, force: bool, enrich: bool)
                         console.print(f"    → {entry.model_id}")
                         markdown = await scrape_with_firecrawl(model_url)
 
-                        details = normalize_wisgate_markdown(markdown, prov.id, target_model_id=entry.model_id)
+                        details = normalize_wisgate_markdown(
+                            markdown,
+                            prov.id,
+                            target_model_id=entry.model_id,
+                            source_url=model_url,
+                        )
                         if details:
                             scraped = details[0]
                             if scraped.pricing:

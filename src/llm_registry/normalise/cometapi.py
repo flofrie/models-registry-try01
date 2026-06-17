@@ -4,6 +4,7 @@ from typing import Optional
 
 import httpx
 
+from llm_registry.normalise._numbers import parse_size, parse_token_count
 from llm_registry.schema.model_entry import Capabilities, ModelEntry, Pricing
 
 
@@ -105,12 +106,12 @@ def parse_cometapi_detail_page(markdown: str, model_id: str, provider_id: str) -
         # Context:2M, Context:200K, Context:1,048,576 (present on some models)
         m = re.match(r"Context:([\d,.]+)([KMB]?)", line.strip(), re.IGNORECASE)
         if m:
-            context_window = _parse_size(m.group(1).replace(",", ""), m.group(2))
+            context_window = parse_size(m.group(1).replace(",", ""), m.group(2))
 
         # Max Output:30K, Max Output:65.5k
         m = re.match(r"Max Output:([\d,.]+)([KMB]?)", line.strip(), re.IGNORECASE)
         if m:
-            max_output_tokens = _parse_size(m.group(1).replace(",", ""), m.group(2))
+            max_output_tokens = parse_size(m.group(1).replace(",", ""), m.group(2))
 
     # Also check the full document for context window in tech-spec tables.
     # We scan the whole document (not just the first 30 lines) because the
@@ -128,7 +129,7 @@ def parse_cometapi_detail_page(markdown: str, model_id: str, provider_id: str) -
             full_text, re.IGNORECASE,
         )
         if ctx_table:
-            context_window = _parse_token_count(ctx_table.group(1))
+            context_window = parse_token_count(ctx_table.group(1))
 
     # Same treatment for max output tokens. Headers seen: "Max output tokens",
     # "Max Output Tokens", "Output token limit", "Maximum Output Tokens".
@@ -140,7 +141,7 @@ def parse_cometapi_detail_page(markdown: str, model_id: str, provider_id: str) -
             full_text, re.IGNORECASE,
         )
         if mo_table:
-            max_output_tokens = _parse_token_count(mo_table.group(1))
+            max_output_tokens = parse_token_count(mo_table.group(1))
 
     # Capabilities from modality tags (Text, Image, Audio, Video) in lines 18-30
     capabilities = Capabilities()
@@ -169,50 +170,3 @@ def parse_cometapi_detail_page(markdown: str, model_id: str, provider_id: str) -
         },
     )
 
-
-def _parse_size(value: str, unit: str) -> Optional[int]:
-    """Parse size notation like 2M, 200K, 30K."""
-    try:
-        v = float(value)
-        u = unit.upper()
-        if u == "M":
-            return int(v * 1_000_000)
-        if u == "K":
-            return int(v * 1_000)
-        if u == "B":
-            return int(v * 1_000_000_000)
-        return int(v)
-    except (ValueError, TypeError):
-        return None
-
-
-def _parse_token_count(cell_text: str) -> Optional[int]:
-    """Parse a token count from a spec-table cell.
-
-    Accepts forms like "1,000,000 tokens", "Up to 1M tokens", "1 million
-    tokens", "~200,000 tokens (approx.)", "65.5K", "Not clearly documented".
-    Returns None when the cell doesn't contain a numeric value.
-    """
-    text = cell_text.strip()
-    # Bare size notation: "65.5K", "30K", "2M"
-    bare = re.match(r"~?([\d,.]+)([KMB])\b", text, re.IGNORECASE)
-    if bare:
-        return _parse_size(bare.group(1).replace(",", ""), bare.group(2))
-
-    # "1,000,000 tokens" / "128,000 tokens" / "~200,000 tokens (approx.)"
-    m = re.search(r"~?([\d,]+)\s*token", text.replace(",", ""))
-    if m:
-        try:
-            return int(m.group(1))
-        except ValueError:
-            pass
-
-    # "1 million tokens" / "2.5 million tokens"
-    m = re.search(r"([\d.]+)\s*million", text, re.IGNORECASE)
-    if m:
-        try:
-            return int(float(m.group(1)) * 1_000_000)
-        except ValueError:
-            pass
-
-    return None
