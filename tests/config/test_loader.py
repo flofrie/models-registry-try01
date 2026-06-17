@@ -76,3 +76,24 @@ def test_website_config_rejects_sample_url_placeholder_without_model_id():
             models_page="https://example.com/models",
             sample_model_url="https://example.com/models/{version}",
         )
+
+
+def test_enrichment_strategy_default_is_none():
+    website = WebsiteConfig(models_page="https://example.com/models")
+    assert website.enrichment_strategy is None
+
+
+def test_enrichment_strategy_wisgate_is_valid():
+    website = WebsiteConfig(
+        models_page="https://wisgate.ai/models",
+        enrichment_strategy="wisgate",
+    )
+    assert website.enrichment_strategy == "wisgate"
+
+
+def test_enrichment_strategy_unknown_raises():
+    with pytest.raises(ValueError, match="bogus"):
+        WebsiteConfig(
+            models_page="https://example.com/models",
+            enrichment_strategy="bogus",
+        )

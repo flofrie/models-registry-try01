@@ -6,6 +6,7 @@ from typing import Optional
 import orjson
 from pydantic import BaseModel, Field, ValidationInfo, field_validator
 
+from llm_registry.normalise.dispatch import KNOWN_ENRICHMENT_STRATEGIES
 
 SUPPORTED_MODEL_URL_TEMPLATE_FIELDS = frozenset({"model_id"})
 
@@ -15,10 +16,15 @@ class WebsiteConfig(BaseModel):
 
     `model_url_template` and template-like `sample_model_url` values
     support exactly one placeholder: `{model_id}`.
+
+    `enrichment_strategy` selects the parser used for detail-page
+    enrichment.  Known strategies: "wisgate".  None (the default)
+    means no enrichment parser is configured for this provider.
     """
     models_page: str
     sample_model_url: Optional[str] = None
     model_url_template: Optional[str] = None
+    enrichment_strategy: Optional[str] = None
     scraping_strategy: str = "none"  # firecrawl, playwright, http, none
     selectors: Optional[dict] = None
 
@@ -34,6 +40,19 @@ class WebsiteConfig(BaseModel):
             return value
 
         _validate_model_url_template(value, field_name=info.field_name)
+        return value
+
+    @field_validator("enrichment_strategy")
+    @classmethod
+    def validate_enrichment_strategy(
+        cls,
+        value: Optional[str],
+    ) -> Optional[str]:
+        if value is not None and value not in KNOWN_ENRICHMENT_STRATEGIES:
+            names = ", ".join(sorted(KNOWN_ENRICHMENT_STRATEGIES))
+            raise ValueError(
+                f"Unknown enrichment strategy '{value}'; known strategies: {names}"
+            )
         return value
 
     def has_model_detail_url_strategy(self) -> bool:

@@ -138,6 +138,49 @@ def test_cli_dispatch_does_not_mutate_existing_entry():
     assert all_models[key].pricing.input_per_1m == 1.0
 
 
+def test_cli_dispatch_skips_template_provider_without_enrichment_strategy(monkeypatch):
+    """A provider with model_url_template but enrichment_strategy=None
+    should skip enrichment rather than trying to call a parser."""
+    provider = SimpleNamespace(
+        id="future",
+        name="Future Provider",
+        website=SimpleNamespace(
+            scraping_strategy="firecrawl",
+            has_model_detail_url_strategy=lambda: True,
+            model_detail_url=lambda mid: f"https://future.test/{mid}",
+            enrichment_strategy=None,
+        ),
+        endpoints=[
+            SimpleNamespace(
+                type="openai",
+                models_endpoint="/models",
+                base_url="https://future.test/v1",
+                auth=SimpleNamespace(required=True, env_var="FUTURE_API_KEY"),
+            ),
+        ],
+    )
+
+    async def discover_one_model(**kwargs):
+        from llm_registry.schema.model_entry import ModelEntry
+        return [ModelEntry(model_id="future-model", provider="future")]
+
+    scrape_calls = []
+
+    async def record_scrape(*args, **kwargs):
+        scrape_calls.append((args, kwargs))
+        return ""
+
+    monkeypatch.setattr(cli, "load_config", lambda: SimpleNamespace(providers=[provider]))
+    monkeypatch.setattr(cli, "read_models_json", lambda: {})
+    monkeypatch.setattr(cli, "discover_from_api", discover_one_model)
+    monkeypatch.setattr(cli, "scrape_with_firecrawl", record_scrape)
+    monkeypatch.setattr(cli, "write_models_json", lambda models: None)
+    monkeypatch.setattr(cli, "generate_markdown", lambda models: None)
+
+    asyncio.run(cli._update(("future",), dry_run=False, force=False, enrich=True))
+    assert scrape_calls == [], f"Expected no scrape calls, got {len(scrape_calls)}"
+
+
 def test_update_does_not_soft_delete_when_discovery_fails(monkeypatch):
     existing = {
         "provider_missing": ModelEntry(
