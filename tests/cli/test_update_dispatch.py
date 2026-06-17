@@ -164,18 +164,21 @@ def test_cli_dispatch_skips_template_provider_without_enrichment_strategy(monkey
         from llm_registry.schema.model_entry import ModelEntry
         return [ModelEntry(model_id="future-model", provider="future")]
 
-    async def must_not_scrape(**kwargs):
-        raise AssertionError("scrape_with_firecrawl must not be called when enrichment_strategy is None")
+    scrape_calls = []
+
+    async def record_scrape(*args, **kwargs):
+        scrape_calls.append((args, kwargs))
+        return ""
 
     monkeypatch.setattr(cli, "load_config", lambda: SimpleNamespace(providers=[provider]))
     monkeypatch.setattr(cli, "read_models_json", lambda: {})
     monkeypatch.setattr(cli, "discover_from_api", discover_one_model)
-    monkeypatch.setattr(cli, "scrape_with_firecrawl", must_not_scrape)
+    monkeypatch.setattr(cli, "scrape_with_firecrawl", record_scrape)
     monkeypatch.setattr(cli, "write_models_json", lambda models: None)
     monkeypatch.setattr(cli, "generate_markdown", lambda models: None)
 
-    # Must not call scrape_with_firecrawl when enrichment_strategy is None
     asyncio.run(cli._update(("future",), dry_run=False, force=False, enrich=True))
+    assert scrape_calls == [], f"Expected no scrape calls, got {len(scrape_calls)}"
 
 
 def test_update_does_not_soft_delete_when_discovery_fails(monkeypatch):
