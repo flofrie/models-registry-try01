@@ -160,15 +160,16 @@ def test_cli_dispatch_skips_template_provider_without_enrichment_strategy(monkey
         ],
     )
 
-    async def noop_discovery(**kwargs):
-        return []
+    async def discover_one_model(**kwargs):
+        from llm_registry.schema.model_entry import ModelEntry
+        return [ModelEntry(model_id="future-model", provider="future")]
 
     async def must_not_scrape(**kwargs):
         raise AssertionError("scrape_with_firecrawl must not be called when enrichment_strategy is None")
 
     monkeypatch.setattr(cli, "load_config", lambda: SimpleNamespace(providers=[provider]))
     monkeypatch.setattr(cli, "read_models_json", lambda: {})
-    monkeypatch.setattr(cli, "discover_from_api", noop_discovery)
+    monkeypatch.setattr(cli, "discover_from_api", discover_one_model)
     monkeypatch.setattr(cli, "scrape_with_firecrawl", must_not_scrape)
     monkeypatch.setattr(cli, "write_models_json", lambda models: None)
     monkeypatch.setattr(cli, "generate_markdown", lambda models: None)
