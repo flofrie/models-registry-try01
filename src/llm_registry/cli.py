@@ -9,6 +9,8 @@ from llm_registry.config.loader import load_config
 from llm_registry.discovery.api import discover_from_api, discover_from_requesty
 from llm_registry.discovery.scraping import scrape_with_firecrawl
 from llm_registry.merge import mark_missing_provider_models_unavailable, merge_model_entries
+from collections.abc import Callable
+
 from llm_registry.normalise import normalize_wisgate_markdown
 from llm_registry.normalise.cometapi import (
     build_slug_to_url_map,
@@ -18,6 +20,12 @@ from llm_registry.normalise.cometapi import (
 )
 from llm_registry.output import generate_markdown, get_timestamp, read_models_json, write_models_json
 from llm_registry.schema.model_entry import ModelEntry
+
+# Enrichment parser dispatch: maps configured strategy names to parser functions.
+_ENRICHMENT_PARSERS: dict[str, Callable[..., list[ModelEntry]]] = {
+    "wisgate": normalize_wisgate_markdown,
+}
+
 
 console = Console()
 
@@ -124,34 +132,39 @@ async def _update(provider_ids: tuple, dry_run: bool, force: bool, enrich: bool)
             elif not prov.website.has_model_detail_url_strategy():
                 console.print("  → Skipping detail-page enrichment: no model URL template")
             else:
-                # Template-backed providers: scrape individual pages.
-                models_needing_pricing = [e for e in api_entries if not e.pricing]
-                for entry in models_needing_pricing:
-                    try:
-                        model_url = prov.website.model_detail_url(entry.model_id)
-                        console.print(f"    → {entry.model_id}")
-                        markdown = await scrape_with_firecrawl(model_url)
+                parser_fn = _ENRICHMENT_PARSERS.get(prov.website.enrichment_strategy)
+                if parser_fn is None:
+                    label = prov.website.enrichment_strategy or "none"
+                    console.print(f"  → Skipping detail-page enrichment: no parser for strategy '{label}'")
+                else:
+                    # Template-backed providers: scrape individual pages.
+                    models_needing_pricing = [e for e in api_entries if not e.pricing]
+                    for entry in models_needing_pricing:
+                        try:
+                            model_url = prov.website.model_detail_url(entry.model_id)
+                            console.print(f"    → {entry.model_id}")
+                            markdown = await scrape_with_firecrawl(model_url)
 
-                        details = normalize_wisgate_markdown(
-                            markdown,
-                            prov.id,
-                            target_model_id=entry.model_id,
-                            source_url=model_url,
-                        )
-                        if details:
-                            scraped = details[0]
-                            if scraped.pricing:
-                                entry.pricing = scraped.pricing
-                            if scraped.context_window:
-                                entry.context_window = scraped.context_window
-                            if scraped.max_output_tokens:
-                                entry.max_output_tokens = scraped.max_output_tokens
-                            if scraped.display_name:
-                                entry.display_name = scraped.display_name
-                            if scraped.capabilities:
-                                entry.capabilities = scraped.capabilities
-                    except Exception as e:
-                        console.print(f"    → Failed: {e}")
+                            details = parser_fn(
+                                markdown,
+                                prov.id,
+                                target_model_id=entry.model_id,
+                                source_url=model_url,
+                            )
+                            if details:
+                                scraped = details[0]
+                                if scraped.pricing:
+                                    entry.pricing = scraped.pricing
+                                if scraped.context_window:
+                                    entry.context_window = scraped.context_window
+                                if scraped.max_output_tokens:
+                                    entry.max_output_tokens = scraped.max_output_tokens
+                                if scraped.display_name:
+                                    entry.display_name = scraped.display_name
+                                if scraped.capabilities:
+                                    entry.capabilities = scraped.capabilities
+                        except Exception as e:
+                            console.print(f"    → Failed: {e}")
 
         # Merge fresh API entries into all_models, preserving existing enrichment.
         for entry in api_entries:
