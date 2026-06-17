@@ -163,13 +163,17 @@ def test_cli_dispatch_skips_template_provider_without_enrichment_strategy(monkey
     async def noop_discovery(**kwargs):
         return []
 
+    async def must_not_scrape(**kwargs):
+        raise AssertionError("scrape_with_firecrawl must not be called when enrichment_strategy is None")
+
     monkeypatch.setattr(cli, "load_config", lambda: SimpleNamespace(providers=[provider]))
     monkeypatch.setattr(cli, "read_models_json", lambda: {})
     monkeypatch.setattr(cli, "discover_from_api", noop_discovery)
+    monkeypatch.setattr(cli, "scrape_with_firecrawl", must_not_scrape)
     monkeypatch.setattr(cli, "write_models_json", lambda models: None)
     monkeypatch.setattr(cli, "generate_markdown", lambda models: None)
 
-    # Should not raise despite enrichment_strategy being None with a template
+    # Must not call scrape_with_firecrawl when enrichment_strategy is None
     asyncio.run(cli._update(("future",), dry_run=False, force=False, enrich=True))
 
 

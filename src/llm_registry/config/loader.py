@@ -6,9 +6,9 @@ from typing import Optional
 import orjson
 from pydantic import BaseModel, Field, ValidationInfo, field_validator
 
+from llm_registry.normalise.dispatch import KNOWN_ENRICHMENT_STRATEGIES
 
 SUPPORTED_MODEL_URL_TEMPLATE_FIELDS = frozenset({"model_id"})
-_KNOWN_ENRICHMENT_STRATEGIES = frozenset({"wisgate"})
 
 
 class WebsiteConfig(BaseModel):
@@ -48,8 +48,8 @@ class WebsiteConfig(BaseModel):
         cls,
         value: Optional[str],
     ) -> Optional[str]:
-        if value is not None and value not in _KNOWN_ENRICHMENT_STRATEGIES:
-            names = ", ".join(sorted(_KNOWN_ENRICHMENT_STRATEGIES))
+        if value is not None and value not in KNOWN_ENRICHMENT_STRATEGIES:
+            names = ", ".join(sorted(KNOWN_ENRICHMENT_STRATEGIES))
             raise ValueError(
                 f"Unknown enrichment strategy '{value}'; known strategies: {names}"
             )

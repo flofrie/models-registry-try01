@@ -9,9 +9,7 @@ from llm_registry.config.loader import load_config
 from llm_registry.discovery.api import discover_from_api, discover_from_requesty
 from llm_registry.discovery.scraping import scrape_with_firecrawl
 from llm_registry.merge import mark_missing_provider_models_unavailable, merge_model_entries
-from collections.abc import Callable
-
-from llm_registry.normalise import normalize_wisgate_markdown
+from llm_registry.normalise.dispatch import ENRICHMENT_PARSERS
 from llm_registry.normalise.cometapi import (
     build_slug_to_url_map,
     fetch_sitemap_urls,
@@ -20,12 +18,6 @@ from llm_registry.normalise.cometapi import (
 )
 from llm_registry.output import generate_markdown, get_timestamp, read_models_json, write_models_json
 from llm_registry.schema.model_entry import ModelEntry
-
-# Enrichment parser dispatch: maps configured strategy names to parser functions.
-_ENRICHMENT_PARSERS: dict[str, Callable[..., list[ModelEntry]]] = {
-    "wisgate": normalize_wisgate_markdown,
-}
-
 
 console = Console()
 
@@ -132,7 +124,7 @@ async def _update(provider_ids: tuple, dry_run: bool, force: bool, enrich: bool)
             elif not prov.website.has_model_detail_url_strategy():
                 console.print("  → Skipping detail-page enrichment: no model URL template")
             else:
-                parser_fn = _ENRICHMENT_PARSERS.get(prov.website.enrichment_strategy)
+                parser_fn = ENRICHMENT_PARSERS.get(prov.website.enrichment_strategy)
                 if parser_fn is None:
                     label = prov.website.enrichment_strategy or "none"
                     console.print(f"  → Skipping detail-page enrichment: no parser for strategy '{label}'")
