@@ -108,6 +108,7 @@ class RequestyModelsClient:
 
     def _parse_capabilities(self, raw: dict) -> Optional[Capabilities]:
         caps = Capabilities()
+        model_id = (raw.get("id") or "").lower()
 
         # If model has an API type of chat, it has text
         if raw.get("api") in ("chat", "responses"):
@@ -125,6 +126,11 @@ class RequestyModelsClient:
         desc = (raw.get("description") or "").lower()
         if "audio" in desc:
             caps.audio = True
+
+        if not any([caps.text, caps.vision, caps.audio, caps.tool_use]):
+            if not _looks_non_text_model(model_id, desc):
+                caps.text = True
+                caps.streaming = True
 
         return caps if any([caps.text, caps.vision, caps.audio, caps.tool_use]) else None
 
@@ -213,3 +219,28 @@ async def discover_from_requesty(
         entry = client.map_to_model_entry(raw, provider_id, available_endpoint_types)
         entries.append(entry)
     return entries
+
+
+def _looks_non_text_model(model_id: str, description: str) -> bool:
+    """Heuristic: true if the model name or description contains a marker
+    that strongly suggests it is not a text model.
+
+    Uses substring matching, which can produce false positives for compound
+    model names like ``minimax-image-recognition`` (correctly flagged) or
+    hypothetical names like ``imagetext-rerank`` (also flagged as image +
+    rerank). The marker set is conservative; revisit if model names start
+    containing these substrings in non-obvious contexts.
+    """
+    text = f"{model_id} {description}"
+    non_text_markers = (
+        "audio",
+        "embedding",
+        "image",
+        "moderation",
+        "rerank",
+        "speech",
+        "tts",
+        "video",
+        "vision",
+    )
+    return any(marker in text for marker in non_text_markers)

@@ -195,9 +195,23 @@ def _parse_model_details(markdown: str, provider_id: str, model_id: str, display
         context_window=context_window,
         max_output_tokens=max_output_tokens,
         pricing=pricing,
-        capabilities=capabilities,
+        capabilities=capabilities if _has_capabilities(capabilities) else None,
         source={
             "url": "https://wisgate.ai/models",
             "method": "scrape",
         },
+)
+
+
+def _has_capabilities(capabilities: Capabilities) -> bool:
+    return any(
+        [
+            capabilities.text,
+            capabilities.vision,
+            capabilities.audio,
+            capabilities.tool_use,
+            capabilities.structured_output,
+            capabilities.streaming,
+            capabilities.thinking,
+        ]
     )

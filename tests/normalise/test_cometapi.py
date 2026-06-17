@@ -8,6 +8,7 @@ from pathlib import Path
 
 from llm_registry.discovery.api.openai import OpenAIModelsClient
 from llm_registry.discovery.api.requesty import RequestyModelsClient
+from llm_registry.normalise import normalize_wisgate_markdown
 from llm_registry.normalise.cometapi import (
     build_slug_to_url_map,
     find_url_for_model,
@@ -393,3 +394,51 @@ def test_requesty_openclaw_key_derived_uniformly():
     )
     assert e.api_type == "anthropic"
     assert e.openclaw_provider_key == "requesty-anthropic"
+
+
+def test_requesty_sparse_text_model_gets_text_capability():
+    raw = {"id": "nvidia/nemotron-3-ultra-550b-a55b", "description": ""}
+    e = RequestyModelsClient("http://x", "/m", "k").map_to_model_entry(
+        raw,
+        provider_id="requesty",
+        available_endpoint_types={"openai", "anthropic"},
+    )
+
+    assert e.capabilities is not None
+    assert e.capabilities.text is True
+    assert e.capabilities.streaming is True
+
+
+def test_wisgate_parser_filters_all_unsupported_modalities_to_none():
+    """A model whose Modalities section explicitly marks every modality
+    as not supported should produce ``capabilities=None`` — the
+    ``_has_capabilities`` guard converts an all-False ``Capabilities`` to
+    ``None`` rather than letting it leak into MODELS.json as a misleading
+    empty object.
+
+    This test exercises the guard directly: without it, the parser would
+    set every modality field to ``False`` and the resulting
+    ``Capabilities`` object would survive into the output.
+    """
+    markdown = """# Unknown Model
+
+nvidia-nemotron-3-ultra-550b-a55b
+
+## Modalities
+
+### Text
+Not supported
+
+### Image
+Not supported
+
+### Audio
+Not supported
+"""
+    entries = normalize_wisgate_markdown(
+        markdown,
+        "requesty",
+        target_model_id="nvidia-nemotron-3-ultra-550b-a55b",
+    )
+
+    assert entries[0].capabilities is None
