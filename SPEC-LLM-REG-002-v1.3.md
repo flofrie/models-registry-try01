@@ -241,7 +241,7 @@ NOTE: The example below shows a simplified single-API structure. Providers like 
 | id | string | ✅ | Unique provider identifier (kebab-case) |
 | name | string | ✅ | Human-readable provider name |
 | website.models_page | string (URL) | ✅ | URL of the page listing all models |
-| website.sample_model_url | string (URL) | ❌ | URL for a specific model detail page (used to infer URL pattern) |
+| website.sample_model_url | string (URL) | ❌ | URL for a specific model detail page. **[IMPL v1.3]** The current code does not infer URL patterns from this field; per-provider enrichment uses hard-coded/provider-specific URL logic pending the explicit URL-template fix tracked in #13. |
 | website.scraping_strategy | enum | ✅ | "firecrawl", "playwright", "http", or "none". **Only "firecrawl" and "none" are currently dispatched by the code** (see `cli.py::_enrich_cometapi` and the wisgate fallback branch). The "playwright" and "http" values are reserved for future implementation. |
 | website.selectors | object | ❌ | CSS/playwright selectors for structured scraping. **Currently a reserved field** — defined in the schema (`config/loader.py::WebsiteConfig.selectors`) but not read by any code path. Reserved for a future config-driven generic scraper. |
 | endpoints | Endpoint[] | ✅ | One entry per API surface the provider exposes (openai/anthropic/google) |
@@ -375,6 +375,8 @@ New models: Add with all available fields; leave unknown fields as null
 
 For each provider with scraping_strategy != "none":
 
+> **[IMPL v1.3]** Tier 2 (LLM fallback) and Tier 3 (verification mode) are **not yet implemented**. The current data path is fully deterministic: API endpoints + regex/table parsing of scraped markdown. Coverage gaps (e.g., CometAPI's API models without marketing pages) are an accepted limitation, not an LLM-fallback trigger.
+
 Load the models page using the configured strategy
 
 Extract structured data:
@@ -396,7 +398,7 @@ LLM Configuration (for Tiers 2 and 3):
 - Model: deepseek/deepseek-v4-pro
 - API key: REQUESTY_API_KEY environment variable
 
-> **[IMPL v1.3]** Tier 2 (LLM fallback) and Tier 3 (verification mode) are **not yet implemented**. The current data path is fully deterministic: API endpoints + regex/table parsing of scraped markdown. Coverage gaps (e.g. CometAPI's 578 API models but only ~150 with marketing pages) are an accepted limitation, not an LLM-fallback trigger. The `discovery/llm/` package and `llm_cache` are reserved directory stubs pending future work.
+> **[IMPL v1.3]** The `discovery/llm/` package and `llm_cache` are reserved directory stubs pending future work.
 
 ### 5.1.1 LLM Extraction Caching
 
@@ -461,7 +463,9 @@ Update providers.json with discovered API details (self-improving config)
 
 If a provider exposes per-model detail pages or API endpoints:
 
-Construct model detail URLs using the pattern from sample_model_url or API convention
+Construct model detail URLs using a configured provider URL pattern or provider-specific API convention.
+
+> **[IMPL v1.3]** `sample_model_url` is currently documentation/config context only; the CLI does not infer URL patterns from concrete sample URLs. See #13 for the code fix to use an explicit URL template/strategy.
 
 Scrape/query each model individually for deep metadata:
 
@@ -519,7 +523,7 @@ Generate a candidate file
 
 Diff against current MODELS.json
 
-Log the diff to a changelog (models_changelog.jsonl)
+Report the diff in console output. **[IMPL v1.3]** A persistent changelog file is deferred; the diff is only printed to stdout. See §9.3 for the deferred-modules list.
 
 Optionally notify (console output, OpenClaw message, or file) about significant changes (price changes > threshold, new models, deprecated models)
 
@@ -539,9 +543,9 @@ models-registry update --provider wisgate --provider openrouter
 
 models-registry update --force
 
-# Incremental: only update one provider, merge with existing
+# Update only one provider; other providers' data is preserved as-is (incremental update)
 
-models-registry update --provider requesty --merge
+models-registry update --provider requesty
 
 # Dry run: scrape but don't write output
 
@@ -563,13 +567,9 @@ models-registry generate-md
 
 models-registry diff --provider wisgate   # ⚠ stub — prints "Not yet implemented"
 
-# Show changelog of historical updates
-
-models-registry changelog
-
 # Clear LLM extraction cache
 
-models-registry cache clear
+models-registry cache-clear   # ⚠ stub — prints "Not yet implemented"
 
 # Set max concurrent requests (default: 5)
 
@@ -592,6 +592,8 @@ models-registry update --parallel 3
 
 ### 9.2 Circuit Breaker
 
+> **[IMPL v1.3]** Deferred. The current implementation logs provider failures during a run but does not persist circuit-breaker state.
+
 For providers that repeatedly fail:
 
 - After 3 consecutive failures: mark provider as "unhealthy"
@@ -608,7 +610,7 @@ Atomic writes: Write to a temp file, validate it, then os.replace() into place
 
 Keep backups: Rotate last N versions (default: 5)
 
-Changelog: Append every change to models_changelog.jsonl with timestamp and diff
+Changelog: Deferred; no `models_changelog.jsonl` file is written in v1.3.
 
 
 ## 10. Dependencies
