@@ -171,7 +171,14 @@ def test_cli_dispatch_skips_template_provider_without_enrichment_strategy(monkey
         scrape_calls.append((args, kwargs))
         return ""
 
-    monkeypatch.setattr(cli, "load_config", lambda: SimpleNamespace(providers=[provider]))
+    monkeypatch.setattr(
+        cli,
+        "load_config",
+        lambda: SimpleNamespace(
+            providers=[provider],
+            settings=SimpleNamespace(firecrawl_timeout_seconds=None),
+        ),
+    )
     monkeypatch.setattr(cli, "read_models_json", lambda: {})
     monkeypatch.setattr(cli, "discover_from_api", discover_one_model)
     monkeypatch.setattr(cli, "scrape_with_firecrawl", record_scrape)
@@ -208,7 +215,14 @@ def test_update_does_not_soft_delete_when_discovery_fails(monkeypatch):
     async def fail_discovery(**kwargs):
         raise RuntimeError("api down")
 
-    monkeypatch.setattr(cli, "load_config", lambda: SimpleNamespace(providers=[provider]))
+    monkeypatch.setattr(
+        cli,
+        "load_config",
+        lambda: SimpleNamespace(
+            providers=[provider],
+            settings=SimpleNamespace(firecrawl_timeout_seconds=None),
+        ),
+    )
     monkeypatch.setattr(cli, "read_models_json", lambda: existing)
     monkeypatch.setattr(cli, "discover_from_api", fail_discovery)
     monkeypatch.setattr(cli, "write_models_json", lambda models: written.update(models))
@@ -217,3 +231,99 @@ def test_update_does_not_soft_delete_when_discovery_fails(monkeypatch):
     asyncio.run(cli._update(("provider",), dry_run=False, force=False, enrich=False))
 
     assert written["provider_missing"].available is True
+
+
+def test_update_passes_firecrawl_timeout_to_template_enrichment(monkeypatch):
+    provider = SimpleNamespace(
+        id="provider",
+        name="Provider",
+        website=SimpleNamespace(
+            scraping_strategy="firecrawl",
+            has_model_detail_url_strategy=lambda: True,
+            model_detail_url=lambda mid: f"https://provider.test/models/{mid}",
+            enrichment_strategy="test",
+        ),
+        endpoints=[
+            SimpleNamespace(
+                type="openai",
+                models_endpoint="/models",
+                base_url="https://provider.test/v1",
+                auth=SimpleNamespace(required=False, env_var="PROVIDER_API_KEY"),
+            )
+        ],
+    )
+
+    async def discover_one_model(**kwargs):
+        return [ModelEntry(model_id="model", provider="provider")]
+
+    scrape_calls = []
+
+    async def record_scrape(*args, **kwargs):
+        scrape_calls.append((args, kwargs))
+        return "# model"
+
+    monkeypatch.setitem(cli.ENRICHMENT_PARSERS, "test", lambda *args, **kwargs: [])
+    monkeypatch.setattr(
+        cli,
+        "load_config",
+        lambda: SimpleNamespace(
+            providers=[provider],
+            settings=SimpleNamespace(firecrawl_timeout_seconds=90),
+        ),
+    )
+    monkeypatch.setattr(cli, "read_models_json", lambda: {})
+    monkeypatch.setattr(cli, "discover_from_api", discover_one_model)
+    monkeypatch.setattr(cli, "scrape_with_firecrawl", record_scrape)
+    monkeypatch.setattr(cli, "write_models_json", lambda models: None)
+    monkeypatch.setattr(cli, "generate_markdown", lambda models: None)
+
+    asyncio.run(cli._update(("provider",), dry_run=False, force=False, enrich=True))
+
+    assert scrape_calls == [
+        (
+            ("https://provider.test/models/model",),
+            {"firecrawl_timeout_seconds": 90},
+        )
+    ]
+
+
+def test_enrich_cometapi_passes_firecrawl_timeout_through_cache(monkeypatch):
+    from llm_registry.discovery.scraping import cache as cache_mod
+
+    provider = SimpleNamespace(id="cometapi")
+    entries = [ModelEntry(model_id="claude", provider="cometapi")]
+    scrape_calls = []
+
+    async def fetch_sitemap():
+        return ["unused"]
+
+    async def fake_cached_scrape(url, scrape_fn):
+        return await scrape_fn(url)
+
+    async def record_scrape(*args, **kwargs):
+        scrape_calls.append((args, kwargs))
+        return "# model"
+
+    monkeypatch.setattr(cli, "fetch_sitemap_urls", fetch_sitemap)
+    monkeypatch.setattr(cli, "build_slug_to_url_map", lambda sitemap_entries: {"unused": "unused"})
+    monkeypatch.setattr(cli, "find_url_for_model", lambda model_id, slug_map: ("anthropic", "claude"))
+    monkeypatch.setattr(cache_mod, "get_cached_markdown", lambda url: None)
+    monkeypatch.setattr(cache_mod, "scrape_with_firecrawl_cached", fake_cached_scrape)
+    monkeypatch.setattr(cli, "scrape_with_firecrawl", record_scrape)
+    monkeypatch.setattr(cli, "parse_cometapi_detail_page", lambda markdown, model_id, provider_id: [])
+
+    asyncio.run(
+        cli._enrich_cometapi(
+            provider,
+            entries,
+            SimpleNamespace(print=lambda *args, **kwargs: None),
+            firecrawl_timeout_seconds=90,
+        )
+    )
+
+    assert scrape_calls == [
+        (
+            ("https://www.cometapi.com/models/anthropic/claude/",),
+            {"firecrawl_timeout_seconds": 90},
+        )
+    ]

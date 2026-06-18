@@ -175,6 +175,7 @@ class SettingsConfig(BaseModel):
     """Global settings."""
     max_concurrent_requests: int = 5
     request_timeout_seconds: int = 30
+    firecrawl_timeout_seconds: Optional[int] = Field(default=None, gt=0)
     retry_attempts: int = 3
     retry_backoff_factor: float = 2.0
     llm_cache_ttl_hours: int = 24
