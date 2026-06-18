@@ -1,0 +1,21 @@
+{
+  "provider_m1": {
+    "model_id": "m1",
+    "provider": "provider",
+    "context_window": 1000,
+    "max_output_tokens": 100,
+    "pricing": {
+      "input_per_1m": 1.0,
+      "output_per_1m": 2.0
+    }
+  },
+  "provider_m2": {
+    "model_id": "m2",
+    "provider": "provider"
+  },
+  "provider_m3": {
+    "model_id": "m3",
+    "provider": "provider",
+    "available": false
+  }
+}

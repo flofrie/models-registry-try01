@@ -1,0 +1,42 @@
+{
+  "provider_m1": {
+    "model_id": "m1",
+    "provider": "provider",
+    "context_window": 1000,
+    "max_output_tokens": 100,
+    "pricing": {
+      "input_per_1m": 1.0,
+      "output_per_1m": 2.0
+    }
+  },
+  "provider_m2": {
+    "model_id": "m2",
+    "provider": "provider",
+    "context_window": 2000,
+    "max_output_tokens": 200,
+    "pricing": {
+      "input_per_1m": 1.0,
+      "output_per_1m": 2.0
+    }
+  },
+  "provider_m3": {
+    "model_id": "m3",
+    "provider": "provider",
+    "context_window": 3000,
+    "max_output_tokens": 300,
+    "pricing": {
+      "input_per_1m": 1.0,
+      "output_per_1m": 2.0
+    }
+  },
+  "provider_m4": {
+    "model_id": "m4",
+    "provider": "provider",
+    "context_window": 4000,
+    "max_output_tokens": 400,
+    "pricing": {
+      "input_per_1m": 1.0,
+      "output_per_1m": 2.0
+    }
+  }
+}
