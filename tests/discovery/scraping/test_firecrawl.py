@@ -72,3 +72,34 @@ def test_firecrawl_scrape_converts_configured_timeout_to_milliseconds(monkeypatc
 
     assert captured["http_timeout"] == 120.0
     assert captured["json"]["timeout"] == 90_000
+
+
+def test_firecrawl_scrape_includes_proxy_when_configured(monkeypatch):
+    captured = {}
+
+    class FakeAsyncClient:
+        def __init__(self, *, timeout):
+            captured["http_timeout"] = timeout
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return None
+
+        async def post(self, url, *, headers, json):
+            captured["json"] = json
+            return FakeResponse()
+
+    monkeypatch.setattr(firecrawl.httpx, "AsyncClient", FakeAsyncClient)
+
+    asyncio.run(
+        FirecrawlClient(
+            api_key="test-key",
+            firecrawl_timeout_seconds=90,
+            proxy="auto",
+        ).scrape("https://example.test")
+    )
+
+    assert captured["json"]["timeout"] == 90_000
+    assert captured["json"]["proxy"] == "auto"

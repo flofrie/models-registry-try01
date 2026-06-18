@@ -105,6 +105,8 @@ The pipeline is **fully deterministic** — no LLM in the loop. Field extraction
 | `update --provider <id>` | Update a single provider |
 | `update --dry-run` | Discover without writing output |
 | `update --force` | Ignore cached data, full re-scrape |
+| `retry-failed` | Retry unresolved failed enrichment records |
+| `retry-failed --try-harder` | Retry with 2x Firecrawl timeout and `proxy: "auto"` |
 | `generate-md` | Regenerate MODELS.md from MODELS.json |
 | `validate` | Validate MODELS.json against schema |
 | `providers` | List configured providers |

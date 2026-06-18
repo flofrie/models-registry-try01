@@ -291,6 +291,16 @@ milliseconds. If unset, the `timeout` key is omitted from the Firecrawl payload
 and Firecrawl's service default applies. This setting is separate from the
 generic HTTP request timeout.
 
+Failed enrichment retry: enrichment failures are recorded in
+`.cache/failed_enrichments.json` with a provider/model/url key, a failure
+category, attempt counts, cooldown (`next_eligible_at`), and exhaustion state.
+Categories are `no_sitemap_page`, `sitemap_url_404`, `scrape_transient`,
+`scrape_permanent`, `parse_empty`, `parse_error`, and `unknown`. Later
+successful enrichment clears matching failures. `retry-failed` retries
+eligible unresolved failures; `--try-harder` uses twice the configured
+Firecrawl timeout and `proxy: "auto"` for categories likely to benefit from a
+stronger network path. Automatic end-of-run retry queues are out of scope.
+
 
 ## 4. Data Model
 
@@ -557,6 +567,13 @@ models-registry update --provider wisgate --provider openrouter
 
 models-registry update --force
 
+# Retry unresolved failed enrichment records
+
+models-registry retry-failed
+models-registry retry-failed --provider cometapi
+models-registry retry-failed --try-harder   # 2x Firecrawl timeout + proxy:auto
+models-registry retry-failed --force        # ignore retry cooldowns/exhaustion
+
 # Update only one provider; other providers' data is preserved as-is (incremental update)
 
 models-registry update --provider requesty
@@ -728,7 +745,7 @@ The following questions have been answered and are implemented in this specifica
 - Source confidence ranking: None — take data as it comes, no priority ordering
 - Change detection threshold: 10% price change triggers notification
 - Async execution: asyncio + httpx async throughout
-- State persistence: **JSON only (no SQLite yet)**. Deferred modules: a future LLM-extraction cache, a circuit breaker, and a SQLite state layer are listed in `IMPLEMENTATION_PLAN.md` but not built. The currently-shipped Firecrawl cache lives at `src/llm_registry/discovery/scraping/cache.py` and the runtime ledger at `.cache/firecrawl_scrape_cache.json` (gitignored). Output format and intermediate state both live in MODELS.json.
+- State persistence: **JSON only (no SQLite yet)**. Deferred modules: a future LLM-extraction cache, a circuit breaker, and a SQLite state layer are listed in `IMPLEMENTATION_PLAN.md` but not built. The currently-shipped Firecrawl cache lives at `src/llm_registry/discovery/scraping/cache.py` and the runtime ledger at `.cache/firecrawl_scrape_cache.json` (gitignored). Failed enrichment state lives in `.cache/failed_enrichments.json` and is operational state, not canonical model data. Output format and intermediate state both live in MODELS.json.
 - Parser threshold: 90% field coverage for 90% of models gates custom code
 - Current coverage by provider (v1.3): Wisgate 99/99, OpenRouter 333/337, CometAPI 109/578 (sitemap-gated), Requesty 512/512
 
@@ -759,7 +776,8 @@ llm-models-registry/
 │   │   └── scraping/
 │   │       ├── firecrawl.py           # Firecrawl API client
 │   │       ├── http.py                # Simple HTTP + BeautifulSoup (reserved, not yet used)
-│   │       └── cache.py               # Per-URL scrape cache + retry
+│   │       ├── cache.py               # Per-URL scrape cache + retry
+│   │       └── failures.py            # Failed enrichment ledger + retry eligibility
 │   ├── normalise/
 │   │   ├── normaliser.py              # Generic helpers (parse_price, etc.)
 │   │   └── cometapi.py                # CometAPI sitemap + detail page → ModelEntry

@@ -324,6 +324,11 @@ not as a complete fresh-enrichment audit.
 - **Firecrawl cache.** Per-URL, 24h success / 5min error TTL, retries on
   408/425/429/5xx with exponential backoff. See
   `src/llm_registry/discovery/scraping/cache.py`.
+- **Failed enrichment ledger.** Unresolved enrichment failures are stored in
+  `.cache/failed_enrichments.json`, not `MODELS.json`. Successful later
+  enrichment clears the matching failure. Use `python -m llm_registry
+  retry-failed` to retry eligible unresolved failures; `--try-harder` uses 2x
+  Firecrawl timeout plus `proxy: "auto"`.
 - **404 detection in normalisers.** Some scrapes return HTTP 200 with a
   "Page Not Found" body — return `None` from your `parse_*_detail_page`,
   don't synthesise a partial entry.

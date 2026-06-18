@@ -159,6 +159,8 @@ models-registry validate                  # Schema check
 
 # Debug
 models-registry providers                 # List configured
+models-registry retry-failed              # Retry unresolved failed enrichment records
+models-registry retry-failed --try-harder # 2x Firecrawl timeout + proxy:auto
 models-registry diff --provider wisgate   # NOT YET IMPLEMENTED (stub)
 models-registry cache-clear               # NOT YET IMPLEMENTED (stub; no LLM cache yet)
 ```
@@ -177,6 +179,11 @@ To re-capture fixtures: see `CONTRIBUTING.md` §4 (no `--capture` CLI flag exist
 
 ### Retry Logic ✅
 The httpx client is configured with `retry_attempts` and `retry_backoff_factor` from settings. Transient Firecrawl 502/429 errors are caught per-model and logged, so the rest of the enrichment continues.
+
+Failed enrichment retry state is persisted in `.cache/failed_enrichments.json`.
+The `retry-failed` command retries eligible unresolved failures, clears ledger
+entries after successful enrichment, and can use `--try-harder` for a stronger
+Firecrawl retry path.
 
 ### Circuit Breaker ⏸ Deferred
 Not implemented. There is no `resilience/` directory in `src/llm_registry/`; the plan in earlier spec drafts to place a circuit breaker there is **deferred**, not in progress.

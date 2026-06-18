@@ -17,9 +17,11 @@ class FirecrawlClient:
         api_key: Optional[str] = None,
         timeout: Optional[float] = DEFAULT_HTTP_TIMEOUT_SECONDS,
         firecrawl_timeout_seconds: Optional[int] = None,
+        proxy: Optional[str] = None,
     ):
         self.api_key = api_key or os.environ.get("FIRECRAWL_API_KEY")
         self.firecrawl_timeout_seconds = firecrawl_timeout_seconds
+        self.proxy = proxy
         self.timeout = _http_timeout(
             timeout=timeout,
             firecrawl_timeout_seconds=firecrawl_timeout_seconds,
@@ -44,6 +46,8 @@ class FirecrawlClient:
         }
         if self.firecrawl_timeout_seconds is not None:
             payload["timeout"] = self.firecrawl_timeout_seconds * 1000
+        if self.proxy is not None:
+            payload["proxy"] = self.proxy
 
         async with httpx.AsyncClient(timeout=self.timeout) as client:
             resp = await client.post(
@@ -72,11 +76,13 @@ async def scrape_with_firecrawl(
     url: str,
     api_key: Optional[str] = None,
     firecrawl_timeout_seconds: Optional[int] = None,
+    proxy: Optional[str] = None,
 ) -> str:
     """Scrape a URL using Firecrawl and return markdown content."""
     client = FirecrawlClient(
         api_key,
         firecrawl_timeout_seconds=firecrawl_timeout_seconds,
+        proxy=proxy,
     )
     result = await client.scrape(url)
 

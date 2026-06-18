@@ -354,6 +354,8 @@ def test_template_enrichment_prints_per_model_outcomes(monkeypatch):
     monkeypatch.setattr(cli, "scrape_with_firecrawl", scrape)
     monkeypatch.setattr(cli, "write_models_json", lambda models: None)
     monkeypatch.setattr(cli, "generate_markdown", lambda models: None)
+    monkeypatch.setattr(cli, "record_failure", lambda **kwargs: None)
+    monkeypatch.setattr(cli, "clear_failure", lambda *args, **kwargs: None)
 
     asyncio.run(cli._update(("provider",), dry_run=False, force=False, enrich=True))
 
@@ -397,6 +399,7 @@ def test_enrich_cometapi_passes_firecrawl_timeout_through_cache(monkeypatch):
             entries,
             SimpleNamespace(print=lambda *args, **kwargs: None),
             firecrawl_timeout_seconds=90,
+            record_failures=False,
         )
     )
 
@@ -470,6 +473,7 @@ def test_enrich_cometapi_prints_per_model_outcomes_and_summary(monkeypatch):
             entries,
             fake_console,
             firecrawl_timeout_seconds=None,
+            record_failures=False,
         )
     )
 
@@ -489,3 +493,67 @@ def test_enrich_cometapi_prints_per_model_outcomes_and_summary(monkeypatch):
         "  → Enriched 2 models (1 from cache, 3 fresh, 1 sitemap URLs were 404, "
         "1 failed, 1 had no sitemap page)"
     ) in output
+
+
+def test_retry_failed_try_harder_enriches_and_clears_failure(monkeypatch):
+    fake_console = FakeConsole()
+    provider = SimpleNamespace(
+        id="provider",
+        website=SimpleNamespace(enrichment_strategy="test"),
+    )
+    failure = {
+        "provider_id": "provider",
+        "model_id": "model",
+        "detail_url": "https://provider.test/model",
+        "last_failure_category": "scrape_transient",
+    }
+    scrape_calls = []
+    cleared = []
+    written = {}
+    markdown_generated = {}
+
+    async def scrape(url, **kwargs):
+        scrape_calls.append((url, kwargs))
+        return "# model"
+
+    def parse(markdown, provider_id, *, target_model_id, source_url):
+        return [
+            ModelEntry(
+                model_id=target_model_id,
+                provider=provider_id,
+                pricing=Pricing(input_per_1m=1.0),
+            )
+        ]
+
+    monkeypatch.setattr(cli, "console", fake_console)
+    monkeypatch.setitem(cli.ENRICHMENT_PARSERS, "test", parse)
+    monkeypatch.setattr(
+        cli,
+        "load_config",
+        lambda: SimpleNamespace(
+            providers=[provider],
+            settings=SimpleNamespace(firecrawl_timeout_seconds=90),
+        ),
+    )
+    monkeypatch.setattr(cli, "eligible_failures", lambda force=False: [failure])
+    monkeypatch.setattr(cli, "read_models_json", lambda: {})
+    monkeypatch.setattr(cli, "scrape_with_firecrawl", scrape)
+    monkeypatch.setattr(cli, "clear_failure", lambda *args: cleared.append(args))
+    monkeypatch.setattr(cli, "record_failure", lambda **kwargs: None)
+    monkeypatch.setattr(cli, "write_models_json", lambda models: written.update(models))
+    monkeypatch.setattr(cli, "generate_markdown", lambda models: markdown_generated.update(models))
+
+    asyncio.run(cli._retry_failed((), try_harder=True, dry_run=False, force=False))
+
+    assert scrape_calls == [
+        (
+            "https://provider.test/model",
+            {"firecrawl_timeout_seconds": 180, "proxy": "auto"},
+        )
+    ]
+    assert cleared == [("provider", "model")]
+    assert written["provider_model"].pricing.input_per_1m == 1.0
+    assert markdown_generated["provider_model"].pricing.input_per_1m == 1.0
+    output = "\n".join(fake_console.lines)
+    assert "  → provider/model: enriched" in output
+    assert "1 retried, 1 succeeded, 0 still failing, 0 skipped" in output
