@@ -2,7 +2,7 @@
 """Output writer for JSON and Markdown."""
 import os
 import shutil
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Optional
 
@@ -13,7 +13,7 @@ from llm_registry.schema.model_entry import ModelEntry
 
 def get_timestamp() -> str:
     """Get current ISO timestamp."""
-    return datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
+    return datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 def write_models_json(
@@ -48,7 +48,7 @@ def write_models_json(
 
         # Copy current output to a unique backup so rotation can retain
         # multiple historical versions instead of overwriting one file.
-        backup_timestamp = datetime.utcnow().strftime("%Y%m%dT%H%M%S%fZ")
+        backup_timestamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%S%fZ")
         backup_path = backup_dir / f"{output_path.stem}.backup.{backup_timestamp}.json"
         shutil.copy2(output_path, backup_path)
 
