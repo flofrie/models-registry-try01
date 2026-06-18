@@ -5,8 +5,12 @@ Maintains an up-to-date, machine-readable database of available LLMs across mult
 ## Quick Start
 
 ```bash
+# Create and activate a virtual environment
+python3 -m venv .venv
+source .venv/bin/activate
+
 # Install
-pip install -e .
+python -m pip install -e .
 
 # Configure environment (see .env.example)
 cp .env.example .env
@@ -110,7 +114,9 @@ The pipeline is **fully deterministic** — no LLM in the loop. Field extraction
 ## Tests
 
 ```bash
-pip install -e '.[dev]'
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install -e '.[dev]'
 pytest tests/ -v
 ```
 
