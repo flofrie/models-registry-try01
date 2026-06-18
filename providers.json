@@ -146,6 +146,7 @@
   "settings": {
     "max_concurrent_requests": 5,
     "request_timeout_seconds": 30,
+    "firecrawl_timeout_seconds": 90,
     "retry_attempts": 3,
     "retry_backoff_factor": 2.0,
     "llm_cache_ttl_hours": 24,

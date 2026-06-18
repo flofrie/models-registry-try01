@@ -1,7 +1,8 @@
 # SPDX-License-Identifier: MIT
 import pytest
+from pydantic import ValidationError
 
-from llm_registry.config.loader import WebsiteConfig
+from llm_registry.config.loader import SettingsConfig, WebsiteConfig
 
 
 def test_website_config_builds_detail_url_from_explicit_template():
@@ -98,3 +99,13 @@ def test_enrichment_strategy_unknown_raises():
             models_page="https://example.com/models",
             enrichment_strategy="bogus",
         )
+
+
+def test_firecrawl_timeout_seconds_defaults_to_none():
+    settings = SettingsConfig()
+    assert settings.firecrawl_timeout_seconds is None
+
+
+def test_firecrawl_timeout_seconds_must_be_positive():
+    with pytest.raises(ValidationError):
+        SettingsConfig(firecrawl_timeout_seconds=0)

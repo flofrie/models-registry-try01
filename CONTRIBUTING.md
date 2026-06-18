@@ -204,6 +204,14 @@ When scraping, use `scrape_with_firecrawl_cached` (not bare
 applies. The cache ledger lives at `.cache/firecrawl_scrape_cache.json` and
 is gitignored.
 
+`settings.firecrawl_timeout_seconds` controls the server-side timeout sent to
+Firecrawl's scrape API, not the generic HTTP request timeout. When it is set,
+the client sends Firecrawl `timeout` in milliseconds and gives the local
+`httpx` request a small buffer so it does not cut off the scrape first. When it
+is unset, the Firecrawl payload omits `timeout` and uses Firecrawl's default.
+The checked-in config sets this to 90 seconds to give slow JS-rendered pages
+enough time to complete.
+
 ---
 
 ## 4. Test fixture + regression test

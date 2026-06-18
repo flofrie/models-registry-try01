@@ -270,6 +270,7 @@ A provider typically exposes 1–3 endpoint entries. The `openai` endpoint is un
 |-------|------|---------|-------------|
 | max_concurrent_requests | int | 5 | Maximum parallel requests across all providers |
 | request_timeout_seconds | int | 30 | Timeout for HTTP requests |
+| firecrawl_timeout_seconds | int \| null | null | Optional Firecrawl scrape API server-side timeout, expressed in seconds in config and forwarded as milliseconds in the Firecrawl `timeout` payload field. When set, the local `httpx` timeout gets a small buffer so it does not fire before Firecrawl's configured timeout. |
 | retry_attempts | int | 3 | Number of retries on failure |
 | retry_backoff_factor | float | 2.0 | Exponential backoff multiplier |
 | llm_cache_ttl_hours | int | 24 | How long to cache LLM extraction results |
@@ -283,6 +284,12 @@ A provider typically exposes 1–3 endpoint entries. The `openai` endpoint is un
 | playwright | Use Playwright (headless Chromium) for interactive scraping + screenshot comparison | **Reserved / not yet implemented** — Firecrawl is the only scraping path currently wired up |
 | http | Simple HTTP GET + BeautifulSoup/parsing | Lightweight pages with no JS rendering needed |
 | none | Skip website scraping entirely; rely solely on API queries | Provider has a complete /models endpoint |
+
+Firecrawl timeout behaviour: when `settings.firecrawl_timeout_seconds` is set,
+the Firecrawl client forwards it as the scrape API's `timeout` value in
+milliseconds. If unset, the `timeout` key is omitted from the Firecrawl payload
+and Firecrawl's service default applies. This setting is separate from the
+generic HTTP request timeout.
 
 
 ## 4. Data Model

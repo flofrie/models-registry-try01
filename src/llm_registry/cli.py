@@ -55,6 +55,7 @@ def update(providers, dry_run, force, enrich):
 async def _update(provider_ids: tuple, dry_run: bool, force: bool, enrich: bool):
     """Async implementation of update command."""
     config = load_config()
+    firecrawl_timeout_seconds = config.settings.firecrawl_timeout_seconds
 
     # Filter to specific providers if requested
     target_providers = [
@@ -121,7 +122,12 @@ async def _update(provider_ids: tuple, dry_run: bool, force: bool, enrich: bool)
             console.print("  → Scraping model detail pages for pricing...")
 
             if prov.id == "cometapi":
-                await _enrich_cometapi(prov, api_entries, console)
+                await _enrich_cometapi(
+                    prov,
+                    api_entries,
+                    console,
+                    firecrawl_timeout_seconds=firecrawl_timeout_seconds,
+                )
             elif not prov.website.has_model_detail_url_strategy():
                 console.print("  → Skipping detail-page enrichment: no model URL template")
             else:
@@ -136,7 +142,10 @@ async def _update(provider_ids: tuple, dry_run: bool, force: bool, enrich: bool)
                         try:
                             model_url = prov.website.model_detail_url(entry.model_id)
                             console.print(f"    → {entry.model_id}")
-                            markdown = await scrape_with_firecrawl(model_url)
+                            markdown = await scrape_with_firecrawl(
+                                model_url,
+                                firecrawl_timeout_seconds=firecrawl_timeout_seconds,
+                            )
 
                             details = parser_fn(
                                 markdown,
@@ -189,7 +198,13 @@ async def _update(provider_ids: tuple, dry_run: bool, force: bool, enrich: bool)
         console.print("[green]Done![/green]")
 
 
-async def _enrich_cometapi(prov, api_entries: list[ModelEntry], console) -> None:
+async def _enrich_cometapi(
+    prov,
+    api_entries: list[ModelEntry],
+    console,
+    *,
+    firecrawl_timeout_seconds: int | None = None,
+) -> None:
     """Enrich CometAPI models by scraping individual detail pages via sitemap URLs.
 
     Uses a per-URL scrape cache (.cache/firecrawl_scrape_cache.json) so
@@ -225,8 +240,15 @@ async def _enrich_cometapi(prov, api_entries: list[ModelEntry], console) -> None
         url = f"https://www.cometapi.com/models/{provider_slug}/{model_slug}/"
         try:
             from llm_registry.discovery.scraping.cache import get_cached_markdown
+
+            async def scrape(url: str) -> str:
+                return await scrape_with_firecrawl(
+                    url,
+                    firecrawl_timeout_seconds=firecrawl_timeout_seconds,
+                )
+
             was_cached = get_cached_markdown(url) is not None
-            markdown = await scrape_with_firecrawl_cached(url, scrape_with_firecrawl)
+            markdown = await scrape_with_firecrawl_cached(url, scrape)
             if was_cached:
                 cached_hits += 1
             else:
