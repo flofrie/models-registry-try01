@@ -14,8 +14,6 @@ fields you need.**
 
 By submitting a contribution to this project, you agree that your contribution
 is licensed under the same license as the project: the MIT License in `LICENSE`.
-You also represent that you have the right to submit the contribution under
-those terms.
 
 Do not submit code, fixtures, generated data, documentation, or other material
 that you do not have the right to contribute. If a contribution contains

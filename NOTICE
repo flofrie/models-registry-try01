@@ -1,0 +1,28 @@
+Notice
+
+This NOTICE file is informational. It is not part of the MIT license grant
+in LICENSE and does not impose additional conditions on use of the
+software. It records two matters the author wants users and contributors
+to be aware of:
+
+1. Responsibility for third-party access
+
+Use of this software to access, query, scrape, cache, transform, or
+otherwise interact with any third-party API, website, service, model
+registry, provider documentation, or other external source is entirely
+the responsibility of the user. The author disclaims responsibility for
+the user's access to, collection of, use of, storage of, redistribution
+of, or reliance on any data obtained from such APIs, websites, services,
+or external sources. Any such activity is solely between the user and
+the relevant third-party provider, and may be subject to that provider's
+terms, policies, licenses, rate limits, access controls, contracts, or
+applicable law.
+
+2. Third-party names and marks
+
+This software may refer to third-party companies, products, services,
+APIs, model names, logos, brands, or trademarks for identification,
+compatibility, or descriptive purposes only. All such names, marks, and
+brands are the property of their respective owners. No endorsement,
+sponsorship, affiliation, or approval by any third-party provider is
+implied unless expressly stated by that provider.

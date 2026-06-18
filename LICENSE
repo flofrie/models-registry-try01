@@ -19,22 +19,3 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
-
-Additional Notices
-
-Use of this Software to access, query, scrape, cache, transform, or otherwise
-interact with any third-party API, website, service, model registry, provider
-documentation, or other external source is entirely the responsibility of the
-user. The author disclaims responsibility for the user's access to, collection
-of, use of, storage of, redistribution of, or reliance on any data obtained
-from such APIs, websites, services, or external sources. Any such activity is
-solely between the user and the relevant third-party provider, and may be
-subject to that provider's terms, policies, licenses, rate limits, access
-controls, contracts, or applicable law.
-
-This Software may refer to third-party companies, products, services, APIs,
-model names, logos, brands, or trademarks for identification, compatibility,
-or descriptive purposes only. All such names, marks, and brands are the
-property of their respective owners. No endorsement, sponsorship, affiliation,
-or approval by any third-party provider is implied unless expressly stated by
-that provider.
