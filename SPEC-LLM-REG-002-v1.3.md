@@ -364,6 +364,13 @@ Missing models: Mark available: false and add notes: "No longer listed by provid
 
 New models: Add with all available fields; leave unknown fields as null
 
+Post-update quality check: compare two concrete MODELS.json snapshots with
+`scripts/check_diff.py` to warn about large provider count drops, field-coverage
+drops, and missing or newly unavailable model IDs. This check is deliberately
+outside the default update path. It detects suspicious output changes, but it
+does not fully detect fresh enrichment failures hidden by merge preservation
+when the final output retains old non-null values.
+
 
 ## 5. Scraping & Discovery Flows
 

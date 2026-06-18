@@ -272,6 +272,27 @@ Then inspect `MODELS.json` (gitignored — it gets regenerated) and check:
 `MODELS.json` and `MODELS.md` are gitignored. The diff you commit is the
 **code and config** — not the generated artefacts.
 
+### After updating: check for suspicious output changes
+
+After a real update, compare the previous and current `MODELS.json` snapshots
+with the standalone checker:
+
+```bash
+python scripts/check_diff.py .backups/MODELS.backup.<timestamp>.json MODELS.json
+```
+
+The checker warns about large provider-level count drops, field-coverage drops
+for fields such as context and pricing, and model IDs that disappeared or were
+marked unavailable. Defaults are a 25% provider count-drop threshold and a 10%
+field-coverage-drop threshold; both are configurable with script flags. Use
+`--strict` in CI to return a non-zero exit code when warnings are found.
+
+This compares two concrete output files. Because normal updates preserve old
+non-null enrichment when fresh scraped data is missing, comparing ordinary
+merged outputs can miss fresh scraper failures that were hidden by merge
+preservation. Treat this checker as a guardrail for suspicious output changes,
+not as a complete fresh-enrichment audit.
+
 ---
 
 ## Gotchas
