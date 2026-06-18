@@ -139,9 +139,9 @@ async def _update(provider_ids: tuple, dry_run: bool, force: bool, enrich: bool)
                     # Template-backed providers: scrape individual pages.
                     models_needing_pricing = [e for e in api_entries if not e.pricing]
                     for entry in models_needing_pricing:
+                        model_url = prov.website.model_detail_url(entry.model_id)
+                        console.print(f"    → {entry.model_id}: discovered, scraping")
                         try:
-                            model_url = prov.website.model_detail_url(entry.model_id)
-                            console.print(f"    → {entry.model_id}")
                             markdown = await scrape_with_firecrawl(
                                 model_url,
                                 firecrawl_timeout_seconds=firecrawl_timeout_seconds,
@@ -153,20 +153,13 @@ async def _update(provider_ids: tuple, dry_run: bool, force: bool, enrich: bool)
                                 target_model_id=entry.model_id,
                                 source_url=model_url,
                             )
-                            if details:
-                                scraped = details[0]
-                                if scraped.pricing:
-                                    entry.pricing = scraped.pricing
-                                if scraped.context_window:
-                                    entry.context_window = scraped.context_window
-                                if scraped.max_output_tokens:
-                                    entry.max_output_tokens = scraped.max_output_tokens
-                                if scraped.display_name:
-                                    entry.display_name = scraped.display_name
-                                if scraped.capabilities:
-                                    entry.capabilities = scraped.capabilities
+                            scraped = details[0] if details else None
+                            if _apply_scraped_enrichment(entry, scraped):
+                                console.print(f"    → {entry.model_id}: scraped, enriched")
+                            else:
+                                console.print(f"    → {entry.model_id}: scraped, no extractable data")
                         except Exception as e:
-                            console.print(f"    → Failed: {e}")
+                            console.print(f"    → {entry.model_id}: failed: {e}")
 
         # Merge fresh API entries into all_models, preserving existing enrichment.
         for entry in api_entries:
@@ -234,6 +227,7 @@ async def _enrich_cometapi(
         url_info = find_url_for_model(entry.model_id, slug_map)
         if not url_info:
             not_found += 1
+            console.print(f"    → {entry.model_id}: no sitemap page")
             continue
 
         provider_slug, model_slug = url_info
@@ -248,37 +242,59 @@ async def _enrich_cometapi(
                 )
 
             was_cached = get_cached_markdown(url) is not None
+            if not was_cached:
+                console.print(f"    → {entry.model_id}: discovered, scraping")
             markdown = await scrape_with_firecrawl_cached(url, scrape)
             if was_cached:
                 cached_hits += 1
+                source_label = "cached"
             else:
                 fresh_scrapes += 1
+                source_label = "scraped"
             scraped = parse_cometapi_detail_page(markdown, entry.model_id, prov.id)
             if scraped is None:
                 # 404 page — sitemap has the URL but the page is gone
                 page_missing += 1
+                console.print(f"    → {entry.model_id}: sitemap URL was 404")
                 continue
-            if scraped:
-                if scraped.pricing:
-                    entry.pricing = scraped.pricing
-                if scraped.context_window:
-                    entry.context_window = scraped.context_window
-                if scraped.max_output_tokens:
-                    entry.max_output_tokens = scraped.max_output_tokens
-                if scraped.display_name:
-                    entry.display_name = scraped.display_name
-                if scraped.capabilities:
-                    entry.capabilities = scraped.capabilities
+            if _apply_scraped_enrichment(entry, scraped):
                 enriched += 1
+                console.print(f"    → {entry.model_id}: {source_label}, enriched")
+            else:
+                console.print(f"    → {entry.model_id}: {source_label}, no extractable data")
         except Exception as e:
             failed += 1
-            console.print(f"    → Failed {entry.model_id}: {e}")
+            console.print(f"    → {entry.model_id}: failed: {e}")
 
     console.print(
         f"  → Enriched {enriched} models "
         f"({cached_hits} from cache, {fresh_scrapes} fresh, {page_missing} sitemap URLs were 404, "
         f"{failed} failed, {not_found} had no sitemap page)"
     )
+
+
+def _apply_scraped_enrichment(entry: ModelEntry, scraped: ModelEntry | None) -> bool:
+    """Merge scraped detail fields into an API entry and report whether any were found."""
+    if scraped is None:
+        return False
+
+    enriched = False
+    if scraped.pricing:
+        entry.pricing = scraped.pricing
+        enriched = True
+    if scraped.context_window is not None:
+        entry.context_window = scraped.context_window
+        enriched = True
+    if scraped.max_output_tokens is not None:
+        entry.max_output_tokens = scraped.max_output_tokens
+        enriched = True
+    if scraped.display_name:
+        entry.display_name = scraped.display_name
+        enriched = True
+    if scraped.capabilities:
+        entry.capabilities = scraped.capabilities
+        enriched = True
+    return enriched
 
 
 @main.command()

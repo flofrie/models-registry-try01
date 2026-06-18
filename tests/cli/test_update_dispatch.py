@@ -22,6 +22,14 @@ from llm_registry.schema.model_entry import (
 )
 
 
+class FakeConsole:
+    def __init__(self):
+        self.lines = []
+
+    def print(self, *args, **kwargs):
+        self.lines.append(" ".join(str(arg) for arg in args))
+
+
 def test_cli_dispatch_preserves_existing_enrichment_when_api_entry_is_stripped():
     """Reproduces the dispatch in cli.py:147-151.
 
@@ -287,6 +295,77 @@ def test_update_passes_firecrawl_timeout_to_template_enrichment(monkeypatch):
     ]
 
 
+def test_template_enrichment_prints_per_model_outcomes(monkeypatch):
+    fake_console = FakeConsole()
+    provider = SimpleNamespace(
+        id="provider",
+        name="Provider",
+        website=SimpleNamespace(
+            scraping_strategy="firecrawl",
+            has_model_detail_url_strategy=lambda: True,
+            model_detail_url=lambda mid: f"https://provider.test/models/{mid}",
+            enrichment_strategy="test",
+        ),
+        endpoints=[
+            SimpleNamespace(
+                type="openai",
+                models_endpoint="/models",
+                base_url="https://provider.test/v1",
+                auth=SimpleNamespace(required=False, env_var="PROVIDER_API_KEY"),
+            )
+        ],
+    )
+
+    async def discover_models(**kwargs):
+        return [
+            ModelEntry(model_id="enriched", provider="provider"),
+            ModelEntry(model_id="no-data", provider="provider"),
+            ModelEntry(model_id="failed", provider="provider"),
+        ]
+
+    async def scrape(url, **kwargs):
+        if url.endswith("/failed"):
+            raise RuntimeError("timeout")
+        return "# model"
+
+    def parse(markdown, provider_id, *, target_model_id, source_url):
+        if target_model_id == "enriched":
+            return [
+                ModelEntry(
+                    model_id=target_model_id,
+                    provider=provider_id,
+                    pricing=Pricing(input_per_1m=1.0),
+                )
+            ]
+        return []
+
+    monkeypatch.setattr(cli, "console", fake_console)
+    monkeypatch.setitem(cli.ENRICHMENT_PARSERS, "test", parse)
+    monkeypatch.setattr(
+        cli,
+        "load_config",
+        lambda: SimpleNamespace(
+            providers=[provider],
+            settings=SimpleNamespace(firecrawl_timeout_seconds=None),
+        ),
+    )
+    monkeypatch.setattr(cli, "read_models_json", lambda: {})
+    monkeypatch.setattr(cli, "discover_from_api", discover_models)
+    monkeypatch.setattr(cli, "scrape_with_firecrawl", scrape)
+    monkeypatch.setattr(cli, "write_models_json", lambda models: None)
+    monkeypatch.setattr(cli, "generate_markdown", lambda models: None)
+
+    asyncio.run(cli._update(("provider",), dry_run=False, force=False, enrich=True))
+
+    output = "\n".join(fake_console.lines)
+    assert "    → enriched: discovered, scraping" in output
+    assert "    → enriched: scraped, enriched" in output
+    assert "    → no-data: discovered, scraping" in output
+    assert "    → no-data: scraped, no extractable data" in output
+    assert "    → failed: discovered, scraping" in output
+    assert "    → failed: failed: timeout" in output
+
+
 def test_enrich_cometapi_passes_firecrawl_timeout_through_cache(monkeypatch):
     from llm_registry.discovery.scraping import cache as cache_mod
 
@@ -327,3 +406,86 @@ def test_enrich_cometapi_passes_firecrawl_timeout_through_cache(monkeypatch):
             {"firecrawl_timeout_seconds": 90},
         )
     ]
+
+
+def test_enrich_cometapi_prints_per_model_outcomes_and_summary(monkeypatch):
+    from llm_registry.discovery.scraping import cache as cache_mod
+
+    fake_console = FakeConsole()
+    provider = SimpleNamespace(id="cometapi")
+    entries = [
+        ModelEntry(model_id="cached-enriched", provider="cometapi"),
+        ModelEntry(model_id="fresh-enriched", provider="cometapi"),
+        ModelEntry(model_id="fresh-no-data", provider="cometapi"),
+        ModelEntry(model_id="no-sitemap", provider="cometapi"),
+        ModelEntry(model_id="page-404", provider="cometapi"),
+        ModelEntry(model_id="failed", provider="cometapi"),
+    ]
+
+    sitemap_map = {
+        model.model_id: ("provider", model.model_id)
+        for model in entries
+        if model.model_id != "no-sitemap"
+    }
+
+    async def fetch_sitemap():
+        return list(sitemap_map.values())
+
+    async def fake_cached_scrape(url, scrape_fn):
+        if "cached-enriched" in url:
+            return "# cached"
+        if "failed" in url:
+            raise RuntimeError("timeout")
+        return await scrape_fn(url)
+
+    async def scrape(url, **kwargs):
+        return "# fresh"
+
+    def parse(markdown, model_id, provider_id):
+        if model_id in {"cached-enriched", "fresh-enriched"}:
+            return ModelEntry(
+                model_id=model_id,
+                provider=provider_id,
+                pricing=Pricing(input_per_1m=1.0),
+            )
+        if model_id == "page-404":
+            return None
+        return ModelEntry(model_id=model_id, provider=provider_id)
+
+    monkeypatch.setattr(cli, "fetch_sitemap_urls", fetch_sitemap)
+    monkeypatch.setattr(cli, "build_slug_to_url_map", lambda sitemap_entries: sitemap_map)
+    monkeypatch.setattr(cli, "find_url_for_model", lambda model_id, slug_map: slug_map.get(model_id))
+    monkeypatch.setattr(
+        cache_mod,
+        "get_cached_markdown",
+        lambda url: "# cached" if "cached-enriched" in url else None,
+    )
+    monkeypatch.setattr(cache_mod, "scrape_with_firecrawl_cached", fake_cached_scrape)
+    monkeypatch.setattr(cli, "scrape_with_firecrawl", scrape)
+    monkeypatch.setattr(cli, "parse_cometapi_detail_page", parse)
+
+    asyncio.run(
+        cli._enrich_cometapi(
+            provider,
+            entries,
+            fake_console,
+            firecrawl_timeout_seconds=None,
+        )
+    )
+
+    output = "\n".join(fake_console.lines)
+    assert "    → cached-enriched: cached, enriched" in output
+    assert "    → cached-enriched: discovered, scraping" not in output
+    assert "    → fresh-enriched: discovered, scraping" in output
+    assert "    → fresh-enriched: scraped, enriched" in output
+    assert "    → fresh-no-data: discovered, scraping" in output
+    assert "    → fresh-no-data: scraped, no extractable data" in output
+    assert "    → no-sitemap: no sitemap page" in output
+    assert "    → page-404: discovered, scraping" in output
+    assert "    → page-404: sitemap URL was 404" in output
+    assert "    → failed: discovered, scraping" in output
+    assert "    → failed: failed: timeout" in output
+    assert (
+        "  → Enriched 2 models (1 from cache, 3 fresh, 1 sitemap URLs were 404, "
+        "1 failed, 1 had no sitemap page)"
+    ) in output
